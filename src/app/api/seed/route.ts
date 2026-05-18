@@ -20,12 +20,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Database already seeded", seeded: false });
     }
 
-    // Create admin user
+    // Create admin users
     const hashedPassword = await hash("admin123", 12);
     const admin = await prisma.user.create({
       data: {
         email: "admin@effortless.com",
         password: hashedPassword,
+        name: "Admin",
+        role: "ADMIN",
+      },
+    });
+
+    const hashedPassword2 = await hash("admin2026", 12);
+    const admin2 = await prisma.user.create({
+      data: {
+        email: "admin",
+        password: hashedPassword2,
         name: "Admin",
         role: "ADMIN",
       },

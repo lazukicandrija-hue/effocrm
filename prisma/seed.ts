@@ -24,6 +24,20 @@ async function main() {
   });
   console.log(`✅ Admin user: ${admin.email} (password: admin123)`);
 
+  // 1b. Create second admin user
+  const hashedPassword2 = await bcrypt.hash("admin2026", 12);
+  const admin2 = await prisma.user.upsert({
+    where: { email: "admin" },
+    update: {},
+    create: {
+      email: "admin",
+      name: "Admin",
+      password: hashedPassword2,
+      role: "ADMIN",
+    },
+  });
+  console.log(`✅ Admin user: ${admin2.email} (password: admin2026)`);
+
   // 2. Create model "Poppy"
   const poppy = await prisma.model.upsert({
     where: { id: "poppy-model-id" },
@@ -124,8 +138,8 @@ async function main() {
 
   console.log("\n🎉 Seeding complete!");
   console.log("\n📋 Login credentials:");
-  console.log("   Email: admin@effortless.com");
-  console.log("   Password: admin123");
+  console.log("   Email: admin@effortless.com / Password: admin123");
+  console.log("   Email: admin / Password: admin2026");
 }
 
 main()
