@@ -134,14 +134,14 @@ export async function POST(request: Request) {
 
     // Step 6: Create accounts
     const accountsData = [
-      { username: "@poppy.golf", niche: "GOLF", status: "ACTIVE", followers: 12500 },
-      { username: "@poppy.casual", niche: "CASUAL", status: "ACTIVE", followers: 8200 },
-      { username: "@poppy.talks", niche: "TALKING_HEAD", status: "WARNING", followers: 15300 },
-      { username: "@poppy.dance", niche: "DANCING", status: "ACTIVE", followers: 22100 },
-      { username: "@poppy.golf2", niche: "GOLF", status: "ACTIVE", followers: 5400 },
+      { username: "@poppy.golf", niche: "GOLF" as const, status: "ACTIVE" as const, followers: 12500 },
+      { username: "@poppy.casual", niche: "CASUAL" as const, status: "ACTIVE" as const, followers: 8200 },
+      { username: "@poppy.talks", niche: "TALKING_HEAD" as const, status: "WARNING" as const, followers: 15300 },
+      { username: "@poppy.dance", niche: "DANCING" as const, status: "ACTIVE" as const, followers: 22100 },
+      { username: "@poppy.golf2", niche: "GOLF" as const, status: "ACTIVE" as const, followers: 5400 },
     ];
 
-    const accounts = [];
+    const accounts: any[] = [];
     for (const acc of accountsData) {
       const account = await prisma.account.create({
         data: { ...acc, modelId: poppy.id, dateCreated: new Date() },
