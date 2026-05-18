@@ -1,0 +1,54 @@
+{
+  "spec": {
+    "name": "effortless-crm",
+    "region": "fra",
+    "services": [
+      {
+        "name": "web",
+        "github": {
+          "repo": "lazukicandrija-hue/effocrm",
+          "branch": "main",
+          "deploy_on_push": true
+        },
+        "dockerfile_path": "Dockerfile",
+        "http_port": 3000,
+        "instance_count": 1,
+        "instance_size_slug": "apps-s-1vcpu-0.5gb",
+        "envs": [
+          {
+            "key": "DATABASE_URL",
+            "scope": "RUN_AND_BUILD_TIME",
+            "value": "${db.DATABASE_URL}"
+          },
+          {
+            "key": "NEXTAUTH_SECRET",
+            "scope": "RUN_AND_BUILD_TIME",
+            "value": "Vg8lth4SwREVnLZee0bdctihwMWpQW+K3dst0T+ae6Y=",
+            "type": "SECRET"
+          },
+          {
+            "key": "NEXTAUTH_URL",
+            "scope": "RUN_AND_BUILD_TIME",
+            "value": "${APP_URL}"
+          }
+        ],
+        "health_check": {
+          "http_path": "/login"
+        },
+        "routes": [
+          {
+            "path": "/"
+          }
+        ]
+      }
+    ],
+    "databases": [
+      {
+        "name": "db",
+        "engine": "PG",
+        "production": false,
+        "version": "16"
+      }
+    ]
+  }
+}
