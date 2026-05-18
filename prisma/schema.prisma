@@ -1,0 +1,92 @@
+// Effortless CRM - Database Schema
+// PostgreSQL with Prisma ORM
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum Role {
+  ADMIN
+  MEMBER
+}
+
+enum Niche {
+  GOLF
+  CASUAL
+  TALKING_HEAD
+  DANCING
+}
+
+enum Status {
+  ACTIVE
+  WARNING
+  PAUSED
+  BANNED
+}
+
+// ============================================
+// MODELS
+// ============================================
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      Role     @default(MEMBER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Model {
+  id        String    @id @default(cuid())
+  name      String
+  photo     String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  accounts  Account[]
+}
+
+model Account {
+  id          String      @id @default(cuid())
+  username    String      @unique
+  modelId     String
+  model       Model       @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  niche       Niche
+  status      Status      @default(ACTIVE)
+  dateCreated DateTime    @default(now())
+  dateBanned  DateTime?
+  followers   Int         @default(0)
+  notes       String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  dailyStats  DailyStat[]
+
+  @@index([modelId])
+  @@index([status])
+  @@index([niche])
+}
+
+model DailyStat {
+  id         String   @id @default(cuid())
+  accountId  String
+  account    Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  date       DateTime @db.Date
+  instaViews Int      @default(0)
+  fbViews    Int      @default(0)
+  followers  Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  @@unique([accountId, date])
+  @@index([accountId])
+  @@index([date])
+}
