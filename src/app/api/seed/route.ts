@@ -45,63 +45,26 @@ export async function POST(request: Request) {
       await prisma.user.findFirst();
     } catch {
       tablesExist = false;
-      // Tables don't exist - try raw SQL to create them
+      // Tables don't exist - create them one statement at a time
+      const sqlStatements = [
+        `CREATE TABLE IF NOT EXISTS "User" ("id" TEXT NOT NULL DEFAULT gen_random_uuid(), "email" TEXT NOT NULL, "password" TEXT NOT NULL, "name" TEXT NOT NULL DEFAULT 'User', "role" TEXT NOT NULL DEFAULT 'MEMBER', "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, CONSTRAINT "User_pkey" PRIMARY KEY ("id"))`,
+        `CREATE UNIQUE INDEX IF NOT EXISTS "User_email_key" ON "User"("email")`,
+        `CREATE TABLE IF NOT EXISTS "Model" ("id" TEXT NOT NULL DEFAULT gen_random_uuid(), "name" TEXT NOT NULL, "photo" TEXT, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, CONSTRAINT "Model_pkey" PRIMARY KEY ("id"))`,
+        `CREATE TABLE IF NOT EXISTS "Account" ("id" TEXT NOT NULL DEFAULT gen_random_uuid(), "username" TEXT NOT NULL, "modelId" TEXT NOT NULL, "niche" TEXT NOT NULL DEFAULT 'GOLF', "status" TEXT NOT NULL DEFAULT 'ACTIVE', "dateCreated" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "dateBanned" TIMESTAMP(3), "followers" INTEGER NOT NULL DEFAULT 0, "notes" TEXT, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, CONSTRAINT "Account_pkey" PRIMARY KEY ("id"))`,
+        `CREATE UNIQUE INDEX IF NOT EXISTS "Account_username_key" ON "Account"("username")`,
+        `CREATE TABLE IF NOT EXISTS "DailyStat" ("id" TEXT NOT NULL DEFAULT gen_random_uuid(), "accountId" TEXT NOT NULL, "date" TIMESTAMP(3) NOT NULL, "instaViews" INTEGER NOT NULL DEFAULT 0, "fbViews" INTEGER NOT NULL DEFAULT 0, "followers" INTEGER NOT NULL DEFAULT 0, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, CONSTRAINT "DailyStat_pkey" PRIMARY KEY ("id"))`,
+        `CREATE UNIQUE INDEX IF NOT EXISTS "DailyStat_accountId_date_key" ON "DailyStat"("accountId", "date")`,
+      ];
+      
       try {
-        await prisma.$executeRawUnsafe(`
-          CREATE TABLE IF NOT EXISTS "User" (
-            "id" TEXT NOT NULL DEFAULT gen_random_uuid(),
-            "email" TEXT NOT NULL,
-            "password" TEXT NOT NULL,
-            "name" TEXT NOT NULL DEFAULT 'User',
-            "role" TEXT NOT NULL DEFAULT 'MEMBER',
-            "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT "User_pkey" PRIMARY KEY ("id")
-          );
-          CREATE UNIQUE INDEX IF NOT EXISTS "User_email_key" ON "User"("email");
-          
-          CREATE TABLE IF NOT EXISTS "Model" (
-            "id" TEXT NOT NULL DEFAULT gen_random_uuid(),
-            "name" TEXT NOT NULL,
-            "photo" TEXT,
-            "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT "Model_pkey" PRIMARY KEY ("id")
-          );
-          
-          CREATE TABLE IF NOT EXISTS "Account" (
-            "id" TEXT NOT NULL DEFAULT gen_random_uuid(),
-            "username" TEXT NOT NULL,
-            "modelId" TEXT NOT NULL,
-            "niche" TEXT NOT NULL DEFAULT 'GOLF',
-            "status" TEXT NOT NULL DEFAULT 'ACTIVE',
-            "dateCreated" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            "dateBanned" TIMESTAMP(3),
-            "followers" INTEGER NOT NULL DEFAULT 0,
-            "notes" TEXT,
-            "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT "Account_pkey" PRIMARY KEY ("id")
-          );
-          CREATE UNIQUE INDEX IF NOT EXISTS "Account_username_key" ON "Account"("username");
-          
-          CREATE TABLE IF NOT EXISTS "DailyStat" (
-            "id" TEXT NOT NULL DEFAULT gen_random_uuid(),
-            "accountId" TEXT NOT NULL,
-            "date" TIMESTAMP(3) NOT NULL,
-            "instaViews" INTEGER NOT NULL DEFAULT 0,
-            "fbViews" INTEGER NOT NULL DEFAULT 0,
-            "followers" INTEGER NOT NULL DEFAULT 0,
-            "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT "DailyStat_pkey" PRIMARY KEY ("id")
-          );
-          CREATE UNIQUE INDEX IF NOT EXISTS "DailyStat_accountId_date_key" ON "DailyStat"("accountId", "date");
-          
-          ALTER TABLE "Account" ADD CONSTRAINT "Account_modelId_fkey" 
-            FOREIGN KEY ("modelId") REFERENCES "Model"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-          ALTER TABLE "DailyStat" ADD CONSTRAINT "DailyStat_accountId_fkey" 
-            FOREIGN KEY ("accountId") REFERENCES "Account"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-        `);
+        for (const sql of sqlStatements) {
+          await prisma.$executeRawUnsafe(sql);
+        }
+        // Add foreign keys (may already exist)
+        try { await prisma.$executeRawUnsafe(`ALTER TABLE "Account" ADD CONSTRAINT "Account_modelId_fkey" FOREIGN KEY ("modelId") REFERENCES "Model"("id") ON DELETE RESTRICT ON UPDATE CASCADE`); } catch {}
+        try { await prisma.$executeRawUnsafe(`ALTER TABLE "DailyStat" ADD CONSTRAINT "DailyStat_accountId_fkey" FOREIGN KEY ("accountId") REFERENCES "Account"("id") ON DELETE RESTRICT ON UPDATE CASCADE`); } catch {}
         tablesExist = true;
       } catch (sqlErr: any) {
-        // Foreign keys may already exist, that's fine
         if (sqlErr.message?.includes("already exists")) {
           tablesExist = true;
         } else {
