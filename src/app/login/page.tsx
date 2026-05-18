@@ -102,7 +102,7 @@ export default function LoginPage() {
               <div className="space-y-2">
                 <Label className="text-gray-400">Email</Label>
                 <Input
-                  type="email"
+                  type="text"
                   placeholder="you@effortless.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
