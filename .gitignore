@@ -38,3 +38,6 @@ next-env.d.ts
 /src/generated/prisma
 .env
 do-app-spec.json
+scraper/node_modules/
+scraper/.ig-session.json
+scraper/*.log

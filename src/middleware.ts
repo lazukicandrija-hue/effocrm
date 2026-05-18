@@ -5,6 +5,7 @@ export const config = {
   matcher: [
     "/dashboard/:path*",
     "/accounts/:path*",
+    "/reels/:path*",
     "/add-views/:path*",
     "/models/:path*",
     "/team/:path*",

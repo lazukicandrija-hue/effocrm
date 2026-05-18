@@ -1,0 +1,14 @@
+{
+  "name": "effortless-ig-scraper",
+  "version": "1.0.0",
+  "description": "Instagram scraper for Effortless CRM - runs independently via cron",
+  "private": true,
+  "scripts": {
+    "scrape": "node scraper.js",
+    "scrape:once": "node scraper.js --once",
+    "login": "node scraper.js --login-only"
+  },
+  "dependencies": {
+    "playwright": "^1.52.0"
+  }
+}

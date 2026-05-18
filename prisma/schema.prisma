@@ -59,6 +59,7 @@ model Model {
 model Account {
   id          String      @id @default(cuid())
   username    String      @unique
+  igUsername   String?     // Real Instagram username for scraping
   modelId     String
   model       Model       @relation(fields: [modelId], references: [id], onDelete: Cascade)
   niche       Niche
@@ -67,13 +68,17 @@ model Account {
   dateBanned  DateTime?
   followers   Int         @default(0)
   notes       String?
+  lastSyncedAt DateTime?
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
   dailyStats  DailyStat[]
+  reels       Reel[]
+  snapshots   AccountSnapshot[]
 
   @@index([modelId])
   @@index([status])
   @@index([niche])
+  @@index([igUsername])
 }
 
 model DailyStat {
@@ -89,4 +94,71 @@ model DailyStat {
   @@unique([accountId, date])
   @@index([accountId])
   @@index([date])
+}
+
+// ============================================
+// INSTAGRAM SCRAPING MODELS
+// ============================================
+
+// Stores each individual reel for an account
+model Reel {
+  id              String    @id @default(cuid())
+  accountId       String
+  account         Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  shortcode       String    // Instagram shortcode (e.g., "DYfeWm2TpUd")
+  igMediaId       String?   // Instagram media ID if available
+  thumbnailUrl    String?
+  caption         String?   @db.Text
+  publishedAt     DateTime?
+  currentViews    Int       @default(0)
+  currentLikes    Int       @default(0)
+  currentComments Int       @default(0)
+  lastScrapedAt   DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  snapshots       ReelSnapshot[]
+
+  @@unique([accountId, shortcode])
+  @@index([accountId])
+  @@index([shortcode])
+}
+
+// Hourly snapshots of each reel's metrics
+model ReelSnapshot {
+  id        String   @id @default(cuid())
+  reelId    String
+  reel      Reel     @relation(fields: [reelId], references: [id], onDelete: Cascade)
+  views     Int      @default(0)
+  likes     Int      @default(0)
+  comments  Int      @default(0)
+  scrapedAt DateTime @default(now())
+
+  @@index([reelId])
+  @@index([scrapedAt])
+}
+
+// Hourly snapshots of account-level metrics (followers, etc.)
+model AccountSnapshot {
+  id         String   @id @default(cuid())
+  accountId  String
+  account    Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  followers  Int      @default(0)
+  following  Int      @default(0)
+  postsCount Int      @default(0)
+  scrapedAt  DateTime @default(now())
+
+  @@index([accountId])
+  @@index([scrapedAt])
+}
+
+// Stores the IG bot account session info
+model ScraperConfig {
+  id            String   @id @default(cuid())
+  igUsername     String   @unique
+  igPassword    String
+  sessionData   String?  @db.Text  // serialized cookies/session
+  lastLoginAt   DateTime?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
