@@ -316,16 +316,25 @@ class InstagramScraper {
               return parseInt(str) || 0;
             }
             let views = 0, likes = 0;
+            let thumbnail = null;
 
-            // Method 1: Look for "X plays" or view count near the play icon
+            // Get og:image for thumbnail (most reliable source)
+            const ogImg = document.querySelector('meta[property="og:image"]');
+            if (ogImg) thumbnail = ogImg.getAttribute("content");
+
+            // Also try video poster
+            if (!thumbnail) {
+              const video = document.querySelector("video[poster]");
+              if (video) thumbnail = video.getAttribute("poster");
+            }
+
+            // Method 1: Look for "X plays" or "X likes" text
             document.querySelectorAll("span").forEach(span => {
               const text = span.innerText.trim();
-              // Views: usually appears as "X,XXX plays" or just a number near play icon
               if (text.match(/plays$/i)) {
                 views = parseNum(text.replace(/\s*plays$/i, ""));
               }
-              // Likes: appears as "X,XXX likes" or near heart
-              if (text.match(/likes?$/i)) {
+              if (text.match(/likes?$/i) && !text.match(/\d+\s*likes?\s*,/)) {
                 likes = parseNum(text.replace(/\s*likes?$/i, ""));
               }
             });
@@ -353,29 +362,32 @@ class InstagramScraper {
               });
             }
 
-            // Method 4: section with numbers (fallback)
+            // Method 4: section with numbers (fallback) - deduplicate
             if (views === 0) {
               const allSpans = document.querySelectorAll("section span, article span");
               const nums = [];
               allSpans.forEach(span => {
                 const text = span.innerText.trim();
                 if (text && text.match(/^[\d,.]+[KMkm]?$/) && text.length < 15) {
-                  nums.push(parseNum(text));
+                  const n = parseNum(text);
+                  if (n > 0 && !nums.includes(n)) nums.push(n);
                 }
               });
-              // Usually first large number is views, second is likes
               if (nums.length >= 1) views = nums[0];
               if (nums.length >= 2) likes = nums[1];
             }
 
-            return { views, likes };
+            // Safety: if likes === views, reset likes to 0 (parsing error)
+            if (likes === views && views > 0) likes = 0;
+
+            return { views, likes, thumbnail };
           });
 
           result.reels.push({
             shortcode: rl.shortcode,
             views: reelData.views || rl.gridViews || 0,
             likes: reelData.likes || 0,
-            thumbnailUrl: rl.thumbnailUrl,
+            thumbnailUrl: reelData.thumbnail || rl.thumbnailUrl,
           });
 
           if (result.reels.length % 10 === 0) {
