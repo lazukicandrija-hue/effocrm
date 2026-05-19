@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
               currentViews: views || 0,
               currentLikes: likes || 0,
               currentComments: comments || 0,
-              thumbnailUrl: thumbnailUrl || undefined,
+              ...(thumbnailUrl ? { thumbnailUrl } : {}),
               lastScrapedAt: new Date(),
             },
             create: {
