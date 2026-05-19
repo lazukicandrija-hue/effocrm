@@ -261,7 +261,7 @@ class InstagramScraper {
 
       // Scroll to load reels
       let prev = 0;
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < 8; i++) {
         await this.page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
         await this.page.waitForTimeout(CONFIG.SCROLL_DELAY);
         const cur = await this.page.evaluate(() => document.querySelectorAll('a[href*="/reel/"]').length);
@@ -269,33 +269,133 @@ class InstagramScraper {
         prev = cur;
       }
 
-      // Extract reels
-      result.reels = await this.page.evaluate(() => {
-        const reels = [];
-        function parseReelCount(str) {
-          if (!str) return 0;
-          str = str.replace(/,/g, "").trim();
-          if (str.match(/[Kk]$/)) return Math.round(parseFloat(str) * 1000);
-          if (str.match(/[Mm]$/)) return Math.round(parseFloat(str) * 1000000);
-          return parseInt(str) || 0;
-        }
+      // Collect all reel shortcodes + thumbnails from grid
+      const reelLinks = await this.page.evaluate(() => {
+        const items = [];
         document.querySelectorAll('a[href*="/reel/"]').forEach(link => {
           const m = (link.getAttribute("href") || "").match(/\/reel\/([^/]+)/);
           if (!m) return;
-          let views = 0, likes = 0;
-          link.querySelectorAll("span").forEach(span => {
-            const text = span.innerText.trim();
-            if (!text || text.length > 15) return;
-            const num = parseReelCount(text);
-            if (num > 0) { if (views === 0) views = num; else likes = num; }
-          });
+          // Avoid duplicates
+          if (items.some(r => r.shortcode === m[1])) return;
           const img = link.querySelector("img");
-          reels.push({ shortcode: m[1], views, likes, thumbnailUrl: img?.getAttribute("src") || null });
+          // Try to get views from grid overlay
+          let gridViews = 0;
+          link.querySelectorAll("span").forEach(span => {
+            const text = span.innerText.trim().replace(/,/g, "");
+            if (!text || text.length > 15) return;
+            let num = 0;
+            if (text.match(/[Kk]$/)) num = Math.round(parseFloat(text) * 1000);
+            else if (text.match(/[Mm]$/)) num = Math.round(parseFloat(text) * 1000000);
+            else num = parseInt(text) || 0;
+            if (num > 0 && gridViews === 0) gridViews = num;
+          });
+          items.push({
+            shortcode: m[1],
+            thumbnailUrl: img?.getAttribute("src") || null,
+            gridViews,
+          });
         });
-        return reels;
+        return items;
       });
+      log("info", `@${igUsername}: found ${reelLinks.length} reels in grid, visiting each...`);
 
-      log("success", `@${igUsername}: ${result.reels.length} reels scraped`);
+      // Visit each reel page for exact views + likes
+      for (const rl of reelLinks) {
+        try {
+          await this.page.goto(`https://www.instagram.com/reel/${rl.shortcode}/`, {
+            waitUntil: "domcontentloaded", timeout: 20000,
+          });
+          await this.page.waitForTimeout(2000);
+
+          const reelData = await this.page.evaluate(() => {
+            function parseNum(str) {
+              if (!str) return 0;
+              str = str.replace(/,/g, "").trim();
+              if (str.match(/[Kk]$/)) return Math.round(parseFloat(str) * 1000);
+              if (str.match(/[Mm]$/)) return Math.round(parseFloat(str) * 1000000);
+              return parseInt(str) || 0;
+            }
+            let views = 0, likes = 0;
+
+            // Method 1: Look for "X plays" or view count near the play icon
+            document.querySelectorAll("span").forEach(span => {
+              const text = span.innerText.trim();
+              // Views: usually appears as "X,XXX plays" or just a number near play icon
+              if (text.match(/plays$/i)) {
+                views = parseNum(text.replace(/\s*plays$/i, ""));
+              }
+              // Likes: appears as "X,XXX likes" or near heart
+              if (text.match(/likes?$/i)) {
+                likes = parseNum(text.replace(/\s*likes?$/i, ""));
+              }
+            });
+
+            // Method 2: meta tag og:description
+            if (views === 0) {
+              const meta = document.querySelector('meta[property="og:description"]');
+              if (meta) {
+                const content = meta.getAttribute("content") || "";
+                const vm = content.match(/([\d,.]+[KMkm]?)\s*(?:plays|views|Plays|Views)/i);
+                const lm = content.match(/([\d,.]+[KMkm]?)\s*(?:likes?|Likes?)/i);
+                if (vm) views = parseNum(vm[1]);
+                if (lm) likes = parseNum(lm[1]);
+              }
+            }
+
+            // Method 3: aria-labels
+            if (views === 0) {
+              document.querySelectorAll('[aria-label]').forEach(el => {
+                const label = el.getAttribute("aria-label") || "";
+                const vm = label.match(/([\d,.]+[KMkm]?)\s*(?:plays|views)/i);
+                const lm = label.match(/([\d,.]+[KMkm]?)\s*(?:likes?)/i);
+                if (vm && views === 0) views = parseNum(vm[1]);
+                if (lm && likes === 0) likes = parseNum(lm[1]);
+              });
+            }
+
+            // Method 4: section with numbers (fallback)
+            if (views === 0) {
+              const allSpans = document.querySelectorAll("section span, article span");
+              const nums = [];
+              allSpans.forEach(span => {
+                const text = span.innerText.trim();
+                if (text && text.match(/^[\d,.]+[KMkm]?$/) && text.length < 15) {
+                  nums.push(parseNum(text));
+                }
+              });
+              // Usually first large number is views, second is likes
+              if (nums.length >= 1) views = nums[0];
+              if (nums.length >= 2) likes = nums[1];
+            }
+
+            return { views, likes };
+          });
+
+          result.reels.push({
+            shortcode: rl.shortcode,
+            views: reelData.views || rl.gridViews || 0,
+            likes: reelData.likes || 0,
+            thumbnailUrl: rl.thumbnailUrl,
+          });
+
+          if (result.reels.length % 10 === 0) {
+            log("info", `  ... ${result.reels.length}/${reelLinks.length} reels done`);
+          }
+
+          // Small delay to not trigger rate limits
+          await this.page.waitForTimeout(1000);
+        } catch (err) {
+          // If individual reel fails, still add with grid data
+          result.reels.push({
+            shortcode: rl.shortcode,
+            views: rl.gridViews || 0,
+            likes: 0,
+            thumbnailUrl: rl.thumbnailUrl,
+          });
+        }
+      }
+
+      log("success", `@${igUsername}: ${result.reels.length} reels scraped with detailed stats`);
     } catch (error) {
       log("error", `Failed @${igUsername}: ${error.message}`);
     }

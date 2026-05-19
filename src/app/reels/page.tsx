@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +24,7 @@ const NICHE_COLORS: Record<string, string> = {
 };
 
 export default function ReelsPage() {
+  const router = useRouter();
   const [reels, setReels] = useState<any[]>([]);
   const [analytics, setAnalytics] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -133,7 +135,7 @@ export default function ReelsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {accounts.map((acc: any) => (
               <Card key={acc.id} className="animate-fade-in hover:shadow-md transition-shadow cursor-pointer"
-                onClick={() => setSelectedAccount(acc.id)}>
+                onClick={() => router.push(`/reels/${acc.id}`)}>
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
