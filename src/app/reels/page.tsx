@@ -270,7 +270,8 @@ export default function ReelsPage() {
                     {/* Thumbnail */}
                     <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
                       {reel.thumbnailUrl ? (
-                        <img src={reel.thumbnailUrl} alt="" className="w-full h-full object-cover" />
+                        <img src={`/api/img-proxy?url=${encodeURIComponent(reel.thumbnailUrl)}`} alt="" className="w-full h-full object-cover"
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
                           <Film className="h-6 w-6 text-gray-300" />

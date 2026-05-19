@@ -47,6 +47,21 @@ const NICHE_COLORS: Record<string, string> = {
   GOLF: "#22c55e", CASUAL: "#3b82f6", TALKING_HEAD: "#a855f7", DANCING: "#ec4899",
 };
 
+// Proxy IG thumbnails through our API to avoid CDN token expiration
+function proxyImg(url: string | null): string | null {
+  if (!url) return null;
+  return `/api/img-proxy?url=${encodeURIComponent(url)}`;
+}
+
+// On image error, replace with fallback
+function handleImgError(e: React.SyntheticEvent<HTMLImageElement>) {
+  const target = e.target as HTMLImageElement;
+  target.style.display = 'none';
+  // Show the sibling fallback div
+  const fallback = target.nextElementSibling as HTMLElement;
+  if (fallback) fallback.style.display = 'flex';
+}
+
 export default function AccountReelsPage() {
   const params = useParams();
   const router = useRouter();
@@ -207,7 +222,12 @@ export default function AccountReelsPage() {
                 style={{ animationDelay: `${idx * 30}ms` }}>
                 {/* Thumbnail */}
                 {reel.thumbnailUrl ? (
-                  <img src={reel.thumbnailUrl} alt="" className="w-full h-full object-cover" />
+                  <>
+                    <img src={proxyImg(reel.thumbnailUrl)!} alt="" className="w-full h-full object-cover" onError={handleImgError} />
+                    <div className="w-full h-full items-center justify-center bg-gradient-to-br from-gray-200 to-gray-300" style={{ display: 'none' }}>
+                      <Film className="h-10 w-10 text-gray-400" />
+                    </div>
+                  </>
                 ) : (
                   <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-200 to-gray-300">
                     <Film className="h-10 w-10 text-gray-400" />
@@ -276,7 +296,7 @@ export default function AccountReelsPage() {
                     {/* Thumbnail */}
                     <div className="w-14 h-14 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
                       {reel.thumbnailUrl ? (
-                        <img src={reel.thumbnailUrl} alt="" className="w-full h-full object-cover" />
+                        <img src={proxyImg(reel.thumbnailUrl)!} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
                           <Film className="h-5 w-5 text-gray-300" />
