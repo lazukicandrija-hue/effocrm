@@ -299,6 +299,28 @@ class InstagramScraper {
       });
       log("info", `@${igUsername}: found ${reelLinks.length} reels in grid, visiting each...`);
 
+      // Fetch thumbnails via HTTP (non-authenticated gets og:image meta tags)
+      const THUMB_BATCH = 5;
+      for (let i = 0; i < reelLinks.length; i += THUMB_BATCH) {
+        const batch = reelLinks.slice(i, i + THUMB_BATCH);
+        await Promise.all(batch.map(async (rl) => {
+          try {
+            const res = await fetch(`https://www.instagram.com/reel/${rl.shortcode}/`, {
+              headers: { "User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)" },
+              redirect: "follow",
+            });
+            const html = await res.text();
+            const ogMatch = html.match(/property="og:image"\s+content="([^"]+)"/);
+            if (ogMatch) {
+              rl.thumbnailUrl = ogMatch[1].replace(/&amp;/g, "&");
+            }
+          } catch {}
+        }));
+      }
+      const thumbCount = reelLinks.filter(r => r.thumbnailUrl).length;
+      log("info", `@${igUsername}: fetched ${thumbCount}/${reelLinks.length} thumbnails`);
+
+
       // Visit each reel page for exact views + likes
       for (const rl of reelLinks) {
         try {
