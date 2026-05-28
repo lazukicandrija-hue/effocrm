@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import DashboardLayout from "@/components/layout/dashboard-layout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,7 +30,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatNumber, daysBetween, formatDate } from "@/lib/utils";
+import { formatNumber, formatDate } from "@/lib/utils";
 import {
   Search,
   Plus,
@@ -40,13 +40,26 @@ import {
   ChevronLeft,
   ChevronRight,
   ArrowUpDown,
+  Check,
 } from "lucide-react";
 
-const NICHE_LABELS: Record<string, string> = {
-  GOLF: "Golf",
-  CASUAL: "Casual",
-  TALKING_HEAD: "Talking Head",
-  DANCING: "Dancing",
+const NICHE_OPTIONS = ["Golf", "Talking", "Omegle", "Podcast", "Dancing", "Motion Control"];
+
+const NICHE_COLORS: Record<string, string> = {
+  Golf: "#22c55e",
+  Talking: "#3b82f6",
+  Omegle: "#a855f7",
+  Podcast: "#f59e0b",
+  Dancing: "#ec4899",
+  "Motion Control": "#14b8a6",
+};
+
+const DECISION_OPTIONS = ["KEEP", "REMOVE", "TESTING"];
+
+const DECISION_VARIANTS: Record<string, "success" | "danger" | "warning"> = {
+  KEEP: "success",
+  REMOVE: "danger",
+  TESTING: "warning",
 };
 
 const STATUS_VARIANTS: Record<string, "success" | "warning" | "secondary" | "danger"> = {
@@ -56,12 +69,28 @@ const STATUS_VARIANTS: Record<string, "success" | "warning" | "secondary" | "dan
   BANNED: "danger",
 };
 
-const NICHE_VARIANTS: Record<string, "golf" | "casual" | "talking_head" | "dancing"> = {
-  GOLF: "golf",
-  CASUAL: "casual",
-  TALKING_HEAD: "talking_head",
-  DANCING: "dancing",
+const emptyForm = {
+  username: "",
+  igUsername: "",
+  profileUrl: "",
+  modelId: "",
+  niche: [] as string[],
+  decision: "",
+  status: "ACTIVE",
+  followers: 0,
+  hasFacebook: false,
+  fbPageLink: "",
+  linkInBio: false,
+  login: "",
+  lastPost: "",
+  accountCreatedDate: "",
+  notes: "",
 };
+
+function toDateInput(v: any): string {
+  if (!v) return "";
+  return new Date(v).toISOString().slice(0, 10);
+}
 
 export default function AccountsPage() {
   const [accounts, setAccounts] = useState<any[]>([]);
@@ -82,14 +111,7 @@ export default function AccountsPage() {
   // Modal
   const [showModal, setShowModal] = useState(false);
   const [editingAccount, setEditingAccount] = useState<any>(null);
-  const [formData, setFormData] = useState({
-    username: "",
-    modelId: "",
-    niche: "GOLF",
-    status: "ACTIVE",
-    followers: 0,
-    notes: "",
-  });
+  const [formData, setFormData] = useState({ ...emptyForm });
   const [saving, setSaving] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
@@ -146,27 +168,38 @@ export default function AccountsPage() {
     }
   };
 
+  const toggleNiche = (n: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      niche: prev.niche.includes(n)
+        ? prev.niche.filter((x) => x !== n)
+        : [...prev.niche, n],
+    }));
+  };
+
   const openAddModal = () => {
     setEditingAccount(null);
-    setFormData({
-      username: "",
-      modelId: models[0]?.id || "",
-      niche: "GOLF",
-      status: "ACTIVE",
-      followers: 0,
-      notes: "",
-    });
+    setFormData({ ...emptyForm, modelId: models[0]?.id || "" });
     setShowModal(true);
   };
 
   const openEditModal = (account: any) => {
     setEditingAccount(account);
     setFormData({
-      username: account.username,
-      modelId: account.modelId,
-      niche: account.niche,
-      status: account.status,
-      followers: account.followers,
+      username: account.username || "",
+      igUsername: account.igUsername || "",
+      profileUrl: account.profileUrl || "",
+      modelId: account.modelId || "",
+      niche: Array.isArray(account.niche) ? account.niche : [],
+      decision: account.decision || "",
+      status: account.status || "ACTIVE",
+      followers: account.followers || 0,
+      hasFacebook: !!account.hasFacebook,
+      fbPageLink: account.fbPageLink || "",
+      linkInBio: !!account.linkInBio,
+      login: account.login || "",
+      lastPost: toDateInput(account.lastPost),
+      accountCreatedDate: toDateInput(account.accountCreatedDate),
       notes: account.notes || "",
     });
     setShowModal(true);
@@ -180,10 +213,17 @@ export default function AccountsPage() {
         : "/api/accounts";
       const method = editingAccount ? "PUT" : "POST";
 
+      const payload = {
+        ...formData,
+        decision: formData.decision || null,
+        lastPost: formData.lastPost || null,
+        accountCreatedDate: formData.accountCreatedDate || null,
+      };
+
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
@@ -223,6 +263,26 @@ export default function AccountsPage() {
         <ArrowUpDown className="h-3 w-3" />
       </div>
     </TableHead>
+  );
+
+  const NicheBadges = ({ niches }: { niches: string[] }) => (
+    <div className="flex flex-wrap gap-1">
+      {(niches || []).length === 0 ? (
+        <span className="text-gray-300">—</span>
+      ) : (
+        niches.map((n) => {
+          const c = NICHE_COLORS[n] || "#6b7280";
+          return (
+            <Badge
+              key={n}
+              style={{ backgroundColor: `${c}15`, color: c, border: `1px solid ${c}30` }}
+            >
+              {n}
+            </Badge>
+          );
+        })
+      )}
+    </div>
   );
 
   return (
@@ -289,9 +349,9 @@ export default function AccountsPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Niches</SelectItem>
-                  {Object.entries(NICHE_LABELS).map(([key, label]) => (
-                    <SelectItem key={key} value={key}>
-                      {label}
+                  {NICHE_OPTIONS.map((n) => (
+                    <SelectItem key={n} value={n}>
+                      {n}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -320,19 +380,21 @@ export default function AccountsPage() {
 
         {/* Table */}
         <Card>
-          <CardContent className="p-0">
+          <CardContent className="p-0 overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow className="bg-gray-50/50">
                   <SortableHead label="Username" field="username" />
-                  <TableHead>Model</TableHead>
                   <TableHead>Niche</TableHead>
+                  <TableHead>Decision</TableHead>
                   <TableHead>Status</TableHead>
                   <SortableHead label="Followers" field="followers" />
                   <TableHead>Views Today</TableHead>
                   <TableHead>Total Views</TableHead>
-                  <TableHead>Days Active</TableHead>
-                  <SortableHead label="Created" field="dateCreated" />
+                  <TableHead className="text-center">FB</TableHead>
+                  <TableHead className="text-center">Bio Link</TableHead>
+                  <TableHead>Last Post</TableHead>
+                  <TableHead>Acc. Created</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -340,7 +402,7 @@ export default function AccountsPage() {
                 {loading ? (
                   [...Array(5)].map((_, i) => (
                     <TableRow key={i}>
-                      {[...Array(10)].map((_, j) => (
+                      {[...Array(12)].map((_, j) => (
                         <TableCell key={j}>
                           <div className="h-4 bg-gray-200 rounded animate-pulse w-16" />
                         </TableCell>
@@ -349,7 +411,7 @@ export default function AccountsPage() {
                   ))
                 ) : accounts.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="text-center py-12 text-gray-500">
+                    <TableCell colSpan={12} className="text-center py-12 text-gray-500">
                       No accounts found. Add your first account to get started.
                     </TableCell>
                   </TableRow>
@@ -358,7 +420,7 @@ export default function AccountsPage() {
                     <TableRow key={account.id}>
                       <TableCell>
                         <a
-                          href={`https://instagram.com/${account.username}`}
+                          href={account.profileUrl || `https://instagram.com/${account.username}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="flex items-center gap-1.5 text-sm font-medium text-gray-900 hover:text-[#d4a853] transition-colors"
@@ -367,13 +429,17 @@ export default function AccountsPage() {
                           <ExternalLink className="h-3 w-3 opacity-50" />
                         </a>
                       </TableCell>
-                      <TableCell className="text-sm">
-                        {account.model?.name || "—"}
+                      <TableCell>
+                        <NicheBadges niches={account.niche} />
                       </TableCell>
                       <TableCell>
-                        <Badge variant={NICHE_VARIANTS[account.niche]}>
-                          {NICHE_LABELS[account.niche] || account.niche}
-                        </Badge>
+                        {account.decision ? (
+                          <Badge variant={DECISION_VARIANTS[account.decision]}>
+                            {account.decision}
+                          </Badge>
+                        ) : (
+                          <span className="text-gray-300">—</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Badge variant={STATUS_VARIANTS[account.status]}>
@@ -396,11 +462,31 @@ export default function AccountsPage() {
                       <TableCell className="font-medium">
                         {formatNumber(account.totalViews)}
                       </TableCell>
-                      <TableCell className="text-sm text-gray-500">
-                        {daysBetween(account.dateCreated)}d
+                      <TableCell className="text-center">
+                        {account.hasFacebook ? (
+                          account.fbPageLink ? (
+                            <a href={account.fbPageLink} target="_blank" rel="noopener noreferrer">
+                              <Check className="h-4 w-4 text-green-500 inline" />
+                            </a>
+                          ) : (
+                            <Check className="h-4 w-4 text-green-500 inline" />
+                          )
+                        ) : (
+                          <span className="text-gray-300">—</span>
+                        )}
                       </TableCell>
-                      <TableCell className="text-sm text-gray-500">
-                        {formatDate(account.dateCreated)}
+                      <TableCell className="text-center">
+                        {account.linkInBio ? (
+                          <Check className="h-4 w-4 text-green-500 inline" />
+                        ) : (
+                          <span className="text-gray-300">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-sm text-gray-500 whitespace-nowrap">
+                        {account.lastPost ? formatDate(account.lastPost) : "—"}
+                      </TableCell>
+                      <TableCell className="text-sm text-gray-500 whitespace-nowrap">
+                        {account.accountCreatedDate ? formatDate(account.accountCreatedDate) : "—"}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center justify-end gap-1">
@@ -459,7 +545,7 @@ export default function AccountsPage() {
 
       {/* Add/Edit Modal */}
       <Dialog open={showModal} onOpenChange={setShowModal}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {editingAccount ? "Edit Account" : "Add New Account"}
@@ -471,27 +557,95 @@ export default function AccountsPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 mt-2">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Username *</Label>
+                <Input
+                  placeholder="username (without @)"
+                  value={formData.username}
+                  onChange={(e) =>
+                    setFormData({ ...formData, username: e.target.value })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>IG Username (for scraping)</Label>
+                <Input
+                  placeholder="defaults to username"
+                  value={formData.igUsername}
+                  onChange={(e) =>
+                    setFormData({ ...formData, igUsername: e.target.value })
+                  }
+                />
+              </div>
+            </div>
+
             <div className="space-y-2">
-              <Label>Username *</Label>
+              <Label>Profile URL</Label>
               <Input
-                placeholder="username (without @)"
-                value={formData.username}
+                placeholder="https://instagram.com/..."
+                value={formData.profileUrl}
                 onChange={(e) =>
-                  setFormData({ ...formData, username: e.target.value })
+                  setFormData({ ...formData, profileUrl: e.target.value })
                 }
               />
             </div>
+
+            <div className="space-y-2">
+              <Label>Niche (multi-select)</Label>
+              <div className="flex flex-wrap gap-2">
+                {NICHE_OPTIONS.map((n) => {
+                  const active = formData.niche.includes(n);
+                  const c = NICHE_COLORS[n];
+                  return (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => toggleNiche(n)}
+                      className="px-3 py-1 rounded-full text-xs font-medium border transition-colors"
+                      style={
+                        active
+                          ? { backgroundColor: c, color: "#fff", borderColor: c }
+                          : { backgroundColor: "#fff", color: "#6b7280", borderColor: "#e5e7eb" }
+                      }
+                    >
+                      {n}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Model *</Label>
+                <Label>Decision</Label>
                 <Select
-                  value={formData.modelId}
+                  value={formData.decision || "none"}
                   onValueChange={(v) =>
-                    setFormData({ ...formData, modelId: v })
+                    setFormData({ ...formData, decision: v === "none" ? "" : v })
                   }
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select model" />
+                    <SelectValue placeholder="—" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">—</SelectItem>
+                    {DECISION_OPTIONS.map((d) => (
+                      <SelectItem key={d} value={d}>
+                        {d}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Model</Label>
+                <Select
+                  value={formData.modelId}
+                  onValueChange={(v) => setFormData({ ...formData, modelId: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Poppy (default)" />
                   </SelectTrigger>
                   <SelectContent>
                     {models.map((m: any) => (
@@ -502,35 +656,14 @@ export default function AccountsPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label>Niche *</Label>
-                <Select
-                  value={formData.niche}
-                  onValueChange={(v) =>
-                    setFormData({ ...formData, niche: v })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(NICHE_LABELS).map(([key, label]) => (
-                      <SelectItem key={key} value={key}>
-                        {label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Status</Label>
                 <Select
                   value={formData.status}
-                  onValueChange={(v) =>
-                    setFormData({ ...formData, status: v })
-                  }
+                  onValueChange={(v) => setFormData({ ...formData, status: v })}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -557,6 +690,77 @@ export default function AccountsPage() {
                 />
               </div>
             </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Last Post</Label>
+                <Input
+                  type="date"
+                  value={formData.lastPost}
+                  onChange={(e) =>
+                    setFormData({ ...formData, lastPost: e.target.value })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Account Created</Label>
+                <Input
+                  type="date"
+                  value={formData.accountCreatedDate}
+                  onChange={(e) =>
+                    setFormData({ ...formData, accountCreatedDate: e.target.value })
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-6">
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-gray-300"
+                  checked={formData.hasFacebook}
+                  onChange={(e) =>
+                    setFormData({ ...formData, hasFacebook: e.target.checked })
+                  }
+                />
+                Facebook
+              </label>
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-gray-300"
+                  checked={formData.linkInBio}
+                  onChange={(e) =>
+                    setFormData({ ...formData, linkInBio: e.target.checked })
+                  }
+                />
+                Link in bio
+              </label>
+            </div>
+
+            <div className="space-y-2">
+              <Label>FB Page Link</Label>
+              <Input
+                placeholder="https://facebook.com/..."
+                value={formData.fbPageLink}
+                onChange={(e) =>
+                  setFormData({ ...formData, fbPageLink: e.target.value })
+                }
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Login (credentials)</Label>
+              <Input
+                placeholder="email:password:phone"
+                value={formData.login}
+                onChange={(e) =>
+                  setFormData({ ...formData, login: e.target.value })
+                }
+              />
+            </div>
+
             <div className="space-y-2">
               <Label>Notes</Label>
               <Textarea
@@ -567,6 +771,7 @@ export default function AccountsPage() {
                 }
               />
             </div>
+
             <div className="flex justify-end gap-3 pt-2">
               <Button variant="outline" onClick={() => setShowModal(false)}>
                 Cancel
@@ -580,10 +785,7 @@ export default function AccountsPage() {
       </Dialog>
 
       {/* Delete confirmation */}
-      <Dialog
-        open={!!deleteConfirm}
-        onOpenChange={() => setDeleteConfirm(null)}
-      >
+      <Dialog open={!!deleteConfirm} onOpenChange={() => setDeleteConfirm(null)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete Account</DialogTitle>

@@ -89,7 +89,7 @@ export default function SettingsPage() {
       const rows = data.accounts.map((a: any) => [
         a.username,
         a.model?.name || "",
-        a.niche,
+        (a.niche || []).join(" | "),
         a.status,
         a.followers,
         a.totalViews || 0,

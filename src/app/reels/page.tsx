@@ -20,7 +20,8 @@ import {
 } from "recharts";
 
 const NICHE_COLORS: Record<string, string> = {
-  GOLF: "#22c55e", CASUAL: "#3b82f6", TALKING_HEAD: "#a855f7", DANCING: "#ec4899",
+  Golf: "#22c55e", Talking: "#3b82f6", Omegle: "#a855f7",
+  Podcast: "#f59e0b", Dancing: "#ec4899", "Motion Control": "#14b8a6",
 };
 
 export default function ReelsPage() {
@@ -140,12 +141,12 @@ export default function ReelsPage() {
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
                       <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white"
-                        style={{ backgroundColor: NICHE_COLORS[acc.niche] || "#6b7280" }}>
+                        style={{ backgroundColor: NICHE_COLORS[acc.niche?.[0]] || "#6b7280" }}>
                         {(acc.igUsername || "?")[0].toUpperCase()}
                       </div>
                       <div>
                         <p className="text-sm font-semibold text-gray-900">@{acc.igUsername}</p>
-                        <p className="text-[10px] text-gray-400">{acc.niche}</p>
+                        <p className="text-[10px] text-gray-400">{(acc.niche || []).join(", ")}</p>
                       </div>
                     </div>
                     <a href={`https://instagram.com/${acc.igUsername}`} target="_blank" rel="noopener noreferrer"

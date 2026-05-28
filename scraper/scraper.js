@@ -193,12 +193,29 @@ class InstagramScraper {
     log("info", `Session saved (${state.cookies.length} cookies)`);
   }
 
+  // Instagram navigation occasionally times out; retry a couple of times before giving up.
+  async gotoWithRetry(url, attempts = 3) {
+    for (let i = 1; i <= attempts; i++) {
+      try {
+        await this.page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
+        return true;
+      } catch (e) {
+        log("warn", `goto failed (${i}/${attempts}) ${url}: ${e.message}`);
+        if (i < attempts) await this.page.waitForTimeout(3000);
+      }
+    }
+    return false;
+  }
+
   async scrapeAccount(igUsername) {
     log("scrape", `Scraping @${igUsername}...`);
     const result = { igUsername, followers: 0, following: 0, postsCount: 0, reels: [] };
 
     try {
-      await this.page.goto(`https://www.instagram.com/${igUsername}/`, { waitUntil: "domcontentloaded", timeout: 30000 });
+      if (!(await this.gotoWithRetry(`https://www.instagram.com/${igUsername}/`))) {
+        log("error", `@${igUsername}: profile navigation failed after retries`);
+        return result;
+      }
       await this.page.waitForTimeout(CONFIG.PAGE_LOAD_WAIT);
 
       if (await this.page.evaluate(() => document.body.innerText.includes("Sorry, this page"))) {
@@ -256,129 +273,91 @@ class InstagramScraper {
       log("info", `@${igUsername}: ${result.followers} followers`);
 
       // Reels page
-      await this.page.goto(`https://www.instagram.com/${igUsername}/reels/`, { waitUntil: "domcontentloaded", timeout: 30000 });
+      if (!(await this.gotoWithRetry(`https://www.instagram.com/${igUsername}/reels/`))) {
+        log("error", `@${igUsername}: reels navigation failed after retries`);
+        return result;
+      }
       await this.page.waitForTimeout(CONFIG.PAGE_LOAD_WAIT);
 
-      // Scroll to load reels
-      let prev = 0;
-      for (let i = 0; i < 8; i++) {
+      // Wait for the reels grid to render before scrolling
+      try {
+        await this.page.waitForSelector('a[href*="/reel/"]', { timeout: 15000 });
+      } catch {
+        log("warn", `@${igUsername}: no reels appeared in grid`);
+      }
+
+      // Scroll to load all reels (don't stop until the count is stable AND non-zero)
+      let prev = 0, stableRounds = 0;
+      for (let i = 0; i < 12; i++) {
         await this.page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
         await this.page.waitForTimeout(CONFIG.SCROLL_DELAY);
         const cur = await this.page.evaluate(() => document.querySelectorAll('a[href*="/reel/"]').length);
-        if (cur === prev) break;
+        if (cur === prev) {
+          if (cur > 0 && ++stableRounds >= 2) break;
+        } else {
+          stableRounds = 0;
+        }
         prev = cur;
       }
 
-      // Collect all reel shortcodes + thumbnails from grid
+      // Collect all reel data straight from the grid overlay.
+      // Each reel link renders likes, comments and views as <span>s, and IG
+      // duplicates every value, so the spans come through as pairs:
+      //   [likes, likes, comments, comments, views, views]
+      // The thumbnail is a background-image on a child div (no <img> tag).
       const reelLinks = await this.page.evaluate(() => {
+        function parseCount(str) {
+          if (!str) return 0;
+          str = str.replace(/,/g, "").trim();
+          if (str.match(/[Kk]$/)) return Math.round(parseFloat(str) * 1000);
+          if (str.match(/[Mm]$/)) return Math.round(parseFloat(str) * 1000000);
+          return parseInt(str) || 0;
+        }
         const items = [];
+        const seen = new Set();
         document.querySelectorAll('a[href*="/reel/"]').forEach(link => {
           const m = (link.getAttribute("href") || "").match(/\/reel\/([^/]+)/);
-          if (!m) return;
-          // Avoid duplicates
-          if (items.some(r => r.shortcode === m[1])) return;
-          const img = link.querySelector("img");
-          // Try to get views from grid overlay
-          let gridViews = 0;
-          link.querySelectorAll("span").forEach(span => {
-            const text = span.innerText.trim().replace(/,/g, "");
-            if (!text || text.length > 15) return;
-            let num = 0;
-            if (text.match(/[Kk]$/)) num = Math.round(parseFloat(text) * 1000);
-            else if (text.match(/[Mm]$/)) num = Math.round(parseFloat(text) * 1000000);
-            else num = parseInt(text) || 0;
-            if (num > 0 && gridViews === 0) gridViews = num;
-          });
-          items.push({
-            shortcode: m[1],
-            thumbnailUrl: img?.getAttribute("src") || null,
-            gridViews,
-          });
+          if (!m || seen.has(m[1])) return;
+          seen.add(m[1]);
+
+          // Thumbnail: prefer <img>, fall back to a background-image url
+          let thumbnailUrl = link.querySelector("img")?.getAttribute("src") || null;
+          if (!thumbnailUrl) {
+            const bgEl = link.querySelector('[style*="background-image"]');
+            const bg = bgEl?.getAttribute("style") || "";
+            const bm = bg.match(/background-image:\s*url\(["']?([^"')]+)["']?\)/);
+            if (bm) thumbnailUrl = bm[1].replace(/&amp;/g, "&");
+          }
+
+          // Stats: take every other span (values are duplicated) -> [likes, comments, views]
+          const spans = [...link.querySelectorAll("span")]
+            .map(s => s.innerText.trim())
+            .filter(Boolean);
+          const stats = spans.filter((_, i) => i % 2 === 0).map(parseCount);
+          let likes = 0, comments = 0, views = 0;
+          if (stats.length >= 3) {
+            likes = stats[0];
+            comments = stats[1];
+            views = Math.max(...stats); // views is always the largest of the three
+          } else if (stats.length) {
+            views = Math.max(...stats);
+          }
+
+          items.push({ shortcode: m[1], thumbnailUrl, likes, comments, views });
         });
         return items;
       });
-      log("info", `@${igUsername}: found ${reelLinks.length} reels in grid, visiting each...`);
-
-      // Fetch ALL reel data via HTTP (non-authenticated Googlebot gets og:image + og:description with views/likes)
-      // This is much more reliable than Playwright since IG renders empty bodies for logged-in headless browsers
-      const BATCH_SIZE = 5;
-      for (let i = 0; i < reelLinks.length; i += BATCH_SIZE) {
-        const batch = reelLinks.slice(i, i + BATCH_SIZE);
-        await Promise.all(batch.map(async (rl) => {
-          try {
-            const res = await fetch(`https://www.instagram.com/reel/${rl.shortcode}/`, {
-              headers: { "User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)" },
-              redirect: "follow",
-            });
-            const html = await res.text();
-
-            // Extract thumbnail from og:image
-            const ogImgMatch = html.match(/property="og:image"\s+content="([^"]+)"/);
-            if (ogImgMatch) {
-              rl.thumbnailUrl = ogImgMatch[1].replace(/&amp;/g, "&");
-            }
-
-            // Extract views and likes from og:description
-            // Format: "X likes, Y comments - ...views" or "X Likes, Y Comments - ... Plays"
-            const ogDescMatch = html.match(/property="og:description"\s+content="([^"]+)"/);
-            if (ogDescMatch) {
-              const desc = ogDescMatch[1].replace(/&amp;/g, "&");
-
-              function parseNum(str) {
-                if (!str) return 0;
-                str = str.replace(/,/g, "").trim();
-                if (str.match(/[Kk]$/)) return Math.round(parseFloat(str) * 1000);
-                if (str.match(/[Mm]$/)) return Math.round(parseFloat(str) * 1000000);
-                return parseInt(str) || 0;
-              }
-
-              // Likes
-              const likesMatch = desc.match(/([\d,.]+[KMkm]?)\s*(?:likes?)/i);
-              if (likesMatch) rl.likes = parseNum(likesMatch[1]);
-
-              // Views/Plays
-              const viewsMatch = desc.match(/([\d,.]+[KMkm]?)\s*(?:plays|views)/i);
-              if (viewsMatch) rl.views = parseNum(viewsMatch[1]);
-            }
-
-            // Also try og:title for views (some reels have "X views" in title)
-            if (!rl.views) {
-              const ogTitleMatch = html.match(/property="og:title"\s+content="([^"]+)"/);
-              if (ogTitleMatch) {
-                const title = ogTitleMatch[1].replace(/&amp;/g, "&");
-                const viewsMatch = title.match(/([\d,.]+[KMkm]?)\s*(?:plays|views)/i);
-                if (viewsMatch) {
-                  function parseNum2(str) {
-                    if (!str) return 0;
-                    str = str.replace(/,/g, "").trim();
-                    if (str.match(/[Kk]$/)) return Math.round(parseFloat(str) * 1000);
-                    if (str.match(/[Mm]$/)) return Math.round(parseFloat(str) * 1000000);
-                    return parseInt(str) || 0;
-                  }
-                  rl.views = parseNum2(viewsMatch[1]);
-                }
-              }
-            }
-          } catch {}
-        }));
-
-        // Progress logging
-        const done = Math.min(i + BATCH_SIZE, reelLinks.length);
-        if (done % 10 === 0 || done === reelLinks.length) {
-          log("info", `  ... ${done}/${reelLinks.length} reels done`);
-        }
-      }
 
       const thumbCount = reelLinks.filter(r => r.thumbnailUrl).length;
       const viewsCount = reelLinks.filter(r => r.views > 0).length;
-      log("info", `@${igUsername}: ${thumbCount} thumbnails, ${viewsCount} with views data`);
+      log("info", `@${igUsername}: ${reelLinks.length} reels in grid (${thumbCount} thumbnails, ${viewsCount} with views)`);
 
-      // Build result reels
       for (const rl of reelLinks) {
         result.reels.push({
           shortcode: rl.shortcode,
-          views: rl.views || rl.gridViews || 0,
+          views: rl.views || 0,
           likes: rl.likes || 0,
+          comments: rl.comments || 0,
           thumbnailUrl: rl.thumbnailUrl || null,
         });
       }

@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
             username: igUsername.toLowerCase(),
             igUsername: igUsername.toLowerCase(),
             modelId: model.id,
-            niche: (niche as any) || "CASUAL",
+            niche: Array.isArray(niche) ? niche : niche ? [niche] : [],
             status: "ACTIVE",
           },
         });

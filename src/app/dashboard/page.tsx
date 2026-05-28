@@ -59,17 +59,21 @@ interface DashboardStats {
 }
 
 const NICHE_COLORS: Record<string, string> = {
-  GOLF: "#22c55e",
-  CASUAL: "#3b82f6",
-  TALKING_HEAD: "#a855f7",
-  DANCING: "#ec4899",
+  Golf: "#22c55e",
+  Talking: "#3b82f6",
+  Omegle: "#a855f7",
+  Podcast: "#f59e0b",
+  Dancing: "#ec4899",
+  "Motion Control": "#14b8a6",
 };
 
 const NICHE_LABELS: Record<string, string> = {
-  GOLF: "Golf",
-  CASUAL: "Casual",
-  TALKING_HEAD: "Talking Head",
-  DANCING: "Dancing",
+  Golf: "Golf",
+  Talking: "Talking",
+  Omegle: "Omegle",
+  Podcast: "Podcast",
+  Dancing: "Dancing",
+  "Motion Control": "Motion Control",
 };
 
 export default function DashboardPage() {

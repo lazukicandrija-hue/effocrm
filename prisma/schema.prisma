@@ -19,11 +19,13 @@ enum Role {
   MEMBER
 }
 
-enum Niche {
-  GOLF
-  CASUAL
-  TALKING_HEAD
-  DANCING
+// Niche is a free-form multi-select (String[]). Current values used in the UI:
+// Golf, Talking, Omegle, Podcast, Dancing, Motion Control
+
+enum Decision {
+  KEEP
+  REMOVE
+  TESTING
 }
 
 enum Status {
@@ -62,11 +64,19 @@ model Account {
   igUsername   String?     // Real Instagram username for scraping
   modelId     String
   model       Model       @relation(fields: [modelId], references: [id], onDelete: Cascade)
-  niche       Niche
+  niche       String[]    @default([])  // multi-select: Golf, Talking, Omegle, Podcast, Dancing, Motion Control
+  decision    Decision?   // KEEP / REMOVE / TESTING
   status      Status      @default(ACTIVE)
-  dateCreated DateTime    @default(now())
+  profileUrl  String?     // Instagram profile URL
+  dateCreated DateTime    @default(now())     // when the CRM row was created
+  accountCreatedDate DateTime?               // when the IG account itself was created
+  lastPost    DateTime?   // date of the last post
   dateBanned  DateTime?
   followers   Int         @default(0)
+  hasFacebook Boolean     @default(false)
+  fbPageLink  String?
+  linkInBio   Boolean     @default(false)
+  login       String?     // sensitive: account login credentials
   notes       String?
   lastSyncedAt DateTime?
   createdAt   DateTime    @default(now())
@@ -77,7 +87,7 @@ model Account {
 
   @@index([modelId])
   @@index([status])
-  @@index([niche])
+  @@index([decision])
   @@index([igUsername])
 }
 

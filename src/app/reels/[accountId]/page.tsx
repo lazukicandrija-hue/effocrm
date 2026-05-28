@@ -27,14 +27,14 @@ type Reel = {
   likesDelta: number;
   lastScrapedAt: string | null;
   reelUrl: string;
-  account: { id: string; igUsername: string; niche: string } | null;
+  account: { id: string; igUsername: string; niche: string[] } | null;
 };
 
 type AccountInfo = {
   id: string;
   username: string;
   igUsername: string;
-  niche: string;
+  niche: string[];
   currentFollowers: number;
   newFollowersToday: number;
   totalReels: number;
@@ -44,7 +44,8 @@ type AccountInfo = {
 };
 
 const NICHE_COLORS: Record<string, string> = {
-  GOLF: "#22c55e", CASUAL: "#3b82f6", TALKING_HEAD: "#a855f7", DANCING: "#ec4899",
+  Golf: "#22c55e", Talking: "#3b82f6", Omegle: "#a855f7",
+  Podcast: "#f59e0b", Dancing: "#ec4899", "Motion Control": "#14b8a6",
 };
 
 // Proxy IG thumbnails through our API to avoid CDN token expiration
@@ -96,7 +97,7 @@ export default function AccountReelsPage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  const nicheColor = NICHE_COLORS[account?.niche || ""] || "#6b7280";
+  const nicheColor = NICHE_COLORS[account?.niche?.[0] || ""] || "#6b7280";
 
   // Calculate engagement rate
   const avgViews = reels.length > 0 ? Math.round(reels.reduce((s, r) => s + r.currentViews, 0) / reels.length) : 0;
@@ -129,9 +130,14 @@ export default function AccountReelsPage() {
                     </a>
                   </div>
                   <div className="flex items-center gap-3 mt-1">
-                    <Badge style={{ backgroundColor: `${nicheColor}15`, color: nicheColor, border: `1px solid ${nicheColor}30` }}>
-                      {account.niche}
-                    </Badge>
+                    {(account.niche || []).map((n) => {
+                      const c = NICHE_COLORS[n] || "#6b7280";
+                      return (
+                        <Badge key={n} style={{ backgroundColor: `${c}15`, color: c, border: `1px solid ${c}30` }}>
+                          {n}
+                        </Badge>
+                      );
+                    })}
                     {account.lastSyncedAt && (
                       <span className="flex items-center gap-1 text-xs text-gray-400">
                         <Clock className="h-3 w-3" />

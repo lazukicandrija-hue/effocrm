@@ -53,31 +53,31 @@ async function main() {
   const accountsData = [
     {
       username: "poppy.golf",
-      niche: "GOLF",
+      niche: ["Golf"],
       status: "ACTIVE",
       followers: 12500,
     },
     {
       username: "poppy.casual",
-      niche: "CASUAL",
+      niche: ["Dancing"],
       status: "ACTIVE",
       followers: 8200,
     },
     {
       username: "poppy.talks",
-      niche: "TALKING_HEAD",
+      niche: ["Talking"],
       status: "ACTIVE",
       followers: 5600,
     },
     {
       username: "poppy.dance",
-      niche: "DANCING",
+      niche: ["Dancing"],
       status: "WARNING",
       followers: 15800,
     },
     {
       username: "poppy.golf2",
-      niche: "GOLF",
+      niche: ["Golf"],
       status: "ACTIVE",
       followers: 3200,
     },

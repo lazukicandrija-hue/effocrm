@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
       where.modelId = modelId;
     }
     if (niche && niche !== "all") {
-      where.niche = niche;
+      where.niche = { has: niche };
     }
     if (status && status !== "all") {
       where.status = status;
@@ -107,19 +107,37 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { username, modelId, niche, status, followers, notes } = body;
+    const {
+      username,
+      modelId,
+      niche,
+      decision,
+      status,
+      followers,
+      notes,
+      profileUrl,
+      igUsername,
+      login,
+      fbPageLink,
+      hasFacebook,
+      linkInBio,
+      lastPost,
+      accountCreatedDate,
+    } = body;
 
     // Validation
-    if (!username || !modelId || !niche) {
+    if (!username) {
       return NextResponse.json(
-        { error: "Username, model, and niche are required" },
+        { error: "Username is required" },
         { status: 400 }
       );
     }
 
+    const cleanUsername = username.replace("@", "");
+
     // Check username uniqueness
     const existing = await prisma.account.findUnique({
-      where: { username },
+      where: { username: cleanUsername },
     });
     if (existing) {
       return NextResponse.json(
@@ -128,14 +146,34 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Default to the "Poppy" model if none provided
+    let resolvedModelId = modelId;
+    if (!resolvedModelId) {
+      const poppy = await prisma.model.upsert({
+        where: { id: "poppy-model-id" },
+        update: {},
+        create: { id: "poppy-model-id", name: "Poppy" },
+      });
+      resolvedModelId = poppy.id;
+    }
+
     const account = await prisma.account.create({
       data: {
-        username: username.replace("@", ""),
-        modelId,
-        niche,
+        username: cleanUsername,
+        igUsername: igUsername ? igUsername.replace("@", "").toLowerCase() : cleanUsername.toLowerCase(),
+        modelId: resolvedModelId,
+        niche: Array.isArray(niche) ? niche : niche ? [niche] : [],
+        decision: decision || null,
         status: status || "ACTIVE",
         followers: followers || 0,
         notes: notes || null,
+        profileUrl: profileUrl || `https://instagram.com/${cleanUsername}`,
+        login: login || null,
+        fbPageLink: fbPageLink || null,
+        hasFacebook: !!hasFacebook,
+        linkInBio: !!linkInBio,
+        lastPost: lastPost ? new Date(lastPost) : null,
+        accountCreatedDate: accountCreatedDate ? new Date(accountCreatedDate) : null,
       },
       include: { model: { select: { name: true } } },
     });

@@ -46,7 +46,23 @@ export async function PUT(
 
   try {
     const body = await req.json();
-    const { username, modelId, niche, status, followers, notes } = body;
+    const {
+      username,
+      modelId,
+      niche,
+      decision,
+      status,
+      followers,
+      notes,
+      profileUrl,
+      igUsername,
+      login,
+      fbPageLink,
+      hasFacebook,
+      linkInBio,
+      lastPost,
+      accountCreatedDate,
+    } = body;
 
     // Check if status changed to BANNED
     const existing = await prisma.account.findUnique({
@@ -60,7 +76,18 @@ export async function PUT(
     const updateData: any = {};
     if (username) updateData.username = username.replace("@", "");
     if (modelId) updateData.modelId = modelId;
-    if (niche) updateData.niche = niche;
+    if (niche !== undefined) updateData.niche = Array.isArray(niche) ? niche : niche ? [niche] : [];
+    if (decision !== undefined) updateData.decision = decision || null;
+    if (profileUrl !== undefined) updateData.profileUrl = profileUrl || null;
+    if (igUsername !== undefined)
+      updateData.igUsername = igUsername ? igUsername.replace("@", "").toLowerCase() : null;
+    if (login !== undefined) updateData.login = login || null;
+    if (fbPageLink !== undefined) updateData.fbPageLink = fbPageLink || null;
+    if (hasFacebook !== undefined) updateData.hasFacebook = !!hasFacebook;
+    if (linkInBio !== undefined) updateData.linkInBio = !!linkInBio;
+    if (lastPost !== undefined) updateData.lastPost = lastPost ? new Date(lastPost) : null;
+    if (accountCreatedDate !== undefined)
+      updateData.accountCreatedDate = accountCreatedDate ? new Date(accountCreatedDate) : null;
     if (status) {
       updateData.status = status;
       // Auto-set dateBanned when status changes to BANNED

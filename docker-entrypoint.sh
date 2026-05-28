@@ -5,7 +5,11 @@ echo "🚀 Starting Effortless CRM..."
 
 # Run database schema push (creates tables if they don't exist)
 echo "📦 Syncing database schema..."
-npx prisma db push --skip-generate 2>&1 || echo "⚠️  Schema sync skipped"
+npx prisma db push --skip-generate --accept-data-loss 2>&1 || echo "⚠️  Schema sync skipped"
+
+# Seed/refresh the KEEP accounts (idempotent — preserves scraped data)
+echo "🌱 Seeding KEEP accounts..."
+node prisma/seed-keep.js 2>&1 || echo "⚠️  KEEP seed skipped"
 
 echo "✅ Ready!"
 

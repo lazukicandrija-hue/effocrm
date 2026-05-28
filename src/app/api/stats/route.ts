@@ -126,13 +126,13 @@ export async function GET(req: NextRequest) {
 
     // Views by niche
     const viewsByNiche = await Promise.all(
-      ["GOLF", "CASUAL", "TALKING_HEAD", "DANCING"].map(async (niche) => {
+      ["Golf", "Talking", "Omegle", "Podcast", "Dancing", "Motion Control"].map(async (niche) => {
         const nicheStats = await prisma.dailyStat.findMany({
           where: {
             date: { gte: periodStart, lte: periodEnd },
             account: {
               ...accountFilter,
-              niche: niche as any,
+              niche: { has: niche },
             },
           },
         });
