@@ -13,6 +13,11 @@ export function formatNumber(num: number): string {
   return num.toString();
 }
 
+// Format an exact integer with dot thousands separators (e.g. 8100 -> "8.100")
+export function formatExact(num: number): string {
+  return (num || 0).toLocaleString("de-DE");
+}
+
 // Calculate delta percentage
 export function calcDelta(current: number, previous: number): number {
   if (previous === 0) return current > 0 ? 100 : 0;

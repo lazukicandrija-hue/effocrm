@@ -67,6 +67,7 @@ model Account {
   niche       String[]    @default([])  // multi-select: Golf, Talking, Omegle, Podcast, Dancing, Motion Control
   decision    Decision?   // KEEP / REMOVE / TESTING
   status      Status      @default(ACTIVE)
+  position    Int         @default(0)  // manual sort order (lower = higher in list)
   profileUrl  String?     // Instagram profile URL
   dateCreated DateTime    @default(now())     // when the CRM row was created
   accountCreatedDate DateTime?               // when the IG account itself was created
@@ -88,6 +89,7 @@ model Account {
   @@index([modelId])
   @@index([status])
   @@index([decision])
+  @@index([position])
   @@index([igUsername])
 }
 

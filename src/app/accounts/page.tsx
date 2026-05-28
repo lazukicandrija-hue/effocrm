@@ -30,7 +30,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatNumber, formatDate } from "@/lib/utils";
+import { formatNumber, formatExact, formatDate } from "@/lib/utils";
 import {
   Search,
   Plus,
@@ -41,6 +41,7 @@ import {
   ChevronRight,
   ArrowUpDown,
   Check,
+  GripVertical,
 } from "lucide-react";
 
 const NICHE_OPTIONS = ["Golf", "Talking", "Omegle", "Podcast", "Dancing", "Motion Control"];
@@ -105,8 +106,12 @@ export default function AccountsPage() {
   const [filterModel, setFilterModel] = useState("all");
   const [filterNiche, setFilterNiche] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
-  const [sortBy, setSortBy] = useState("createdAt");
-  const [sortOrder, setSortOrder] = useState("desc");
+  const [sortBy, setSortBy] = useState("position");
+  const [sortOrder, setSortOrder] = useState("asc");
+
+  // Drag-and-drop reordering
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [overIndex, setOverIndex] = useState<number | null>(null);
 
   // Modal
   const [showModal, setShowModal] = useState(false);
@@ -166,6 +171,40 @@ export default function AccountsPage() {
       setSortBy(field);
       setSortOrder("desc");
     }
+  };
+
+  const manualMode = sortBy === "position";
+
+  const persistOrder = async (ordered: any[]) => {
+    try {
+      await fetch("/api/accounts/reorder", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: ordered.map((a) => a.id) }),
+      });
+    } catch (error) {
+      console.error("Failed to persist order:", error);
+    }
+  };
+
+  const handleDrop = (targetIndex: number) => {
+    if (dragIndex === null || dragIndex === targetIndex) {
+      setDragIndex(null);
+      setOverIndex(null);
+      return;
+    }
+    const reordered = [...accounts];
+    const [moved] = reordered.splice(dragIndex, 1);
+    reordered.splice(targetIndex, 0, moved);
+    setAccounts(reordered);
+    setDragIndex(null);
+    setOverIndex(null);
+    // ensure we stay in manual order, then persist
+    if (!manualMode) {
+      setSortBy("position");
+      setSortOrder("asc");
+    }
+    persistOrder(reordered);
   };
 
   const toggleNiche = (n: string) => {
@@ -384,6 +423,7 @@ export default function AccountsPage() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-gray-50/50">
+                  <TableHead className="w-8"></TableHead>
                   <SortableHead label="Username" field="username" />
                   <TableHead>Niche</TableHead>
                   <TableHead>Decision</TableHead>
@@ -402,7 +442,7 @@ export default function AccountsPage() {
                 {loading ? (
                   [...Array(5)].map((_, i) => (
                     <TableRow key={i}>
-                      {[...Array(12)].map((_, j) => (
+                      {[...Array(13)].map((_, j) => (
                         <TableCell key={j}>
                           <div className="h-4 bg-gray-200 rounded animate-pulse w-16" />
                         </TableCell>
@@ -411,13 +451,35 @@ export default function AccountsPage() {
                   ))
                 ) : accounts.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={12} className="text-center py-12 text-gray-500">
+                    <TableCell colSpan={13} className="text-center py-12 text-gray-500">
                       No accounts found. Add your first account to get started.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  accounts.map((account) => (
-                    <TableRow key={account.id}>
+                  accounts.map((account, index) => (
+                    <TableRow
+                      key={account.id}
+                      draggable
+                      onDragStart={() => setDragIndex(index)}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        if (overIndex !== index) setOverIndex(index);
+                      }}
+                      onDrop={() => handleDrop(index)}
+                      onDragEnd={() => {
+                        setDragIndex(null);
+                        setOverIndex(null);
+                      }}
+                      className={
+                        (dragIndex === index ? "opacity-50 " : "") +
+                        (overIndex === index && dragIndex !== index
+                          ? "border-t-2 border-[#d4a853] "
+                          : "")
+                      }
+                    >
+                      <TableCell className="w-8 cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500">
+                        <GripVertical className="h-4 w-4" />
+                      </TableCell>
                       <TableCell>
                         <a
                           href={account.profileUrl || `https://instagram.com/${account.username}`}
@@ -446,8 +508,8 @@ export default function AccountsPage() {
                           {account.status}
                         </Badge>
                       </TableCell>
-                      <TableCell className="font-medium">
-                        {formatNumber(account.followers)}
+                      <TableCell className="font-medium whitespace-nowrap">
+                        {formatExact(account.followers)}
                       </TableCell>
                       <TableCell>
                         <div className="text-sm">
