@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
       let reelsProcessed = 0;
       if (reels && Array.isArray(reels)) {
         for (const reelData of reels) {
-          const { shortcode, views, likes, comments, thumbnailUrl, caption } = reelData;
+          const { shortcode, views, likes, comments, thumbnailUrl, caption, publishedAt } = reelData;
           if (!shortcode) continue;
 
           // Upsert the reel
@@ -79,6 +79,7 @@ export async function POST(req: NextRequest) {
               currentLikes: likes || 0,
               currentComments: comments || 0,
               ...(thumbnailUrl ? { thumbnailUrl } : {}),
+              ...(publishedAt ? { publishedAt: new Date(publishedAt) } : {}),
               lastScrapedAt: new Date(),
             },
             create: {
@@ -89,6 +90,7 @@ export async function POST(req: NextRequest) {
               currentComments: comments || 0,
               thumbnailUrl: thumbnailUrl || null,
               caption: caption || null,
+              publishedAt: publishedAt ? new Date(publishedAt) : null,
               lastScrapedAt: new Date(),
             },
           });
@@ -108,55 +110,44 @@ export async function POST(req: NextRequest) {
       }
 
       // 4. Update DailyStat for today
-      // Calculate total views across ALL reels for this account
-      const allReels = await prisma.reel.findMany({
-        where: { accountId: account.id },
-        select: { currentViews: true, currentLikes: true },
-      });
-      const totalReelViews = allReels.reduce((sum, r) => sum + r.currentViews, 0);
+      // "Views today" is the number of views GAINED today, not the lifetime
+      // total. We compute it per reel as (current views − the reel's view
+      // count at the start of today) and sum across all reels. This naturally
+      // captures an older reel that suddenly gains views today, and ignores
+      // reels that are dormant (delta 0). A reel first seen today has no prior
+      // snapshot, so all of its views count as gained today.
 
-      // Get today's date at midnight (Serbian time = UTC+1/+2)
-      // We use UTC+2 (CEST) for Serbian time
+      // Today's midnight in Serbian time (UTC+2 CEST; switch to 1 for CET).
       const now = new Date();
-      const serbianOffset = 2; // CEST (summer) - adjust to 1 for CET (winter)
+      const serbianOffset = 2;
       const serbianNow = new Date(now.getTime() + serbianOffset * 60 * 60 * 1000);
       const todaySerbian = new Date(serbianNow.toISOString().split("T")[0] + "T00:00:00.000Z");
 
-      // Get yesterday's midnight snapshot for follower delta
-      const yesterdaySerbian = new Date(todaySerbian);
-      yesterdaySerbian.setDate(yesterdaySerbian.getDate() - 1);
+      const accountReels = await prisma.reel.findMany({
+        where: { accountId: account.id },
+        select: { id: true, currentViews: true },
+      });
 
-      // Get the midnight snapshot (last snapshot from yesterday ~23:59)
-      const midnightSnapshot = await prisma.accountSnapshot.findFirst({
-        where: {
-          accountId: account.id,
-          scrapedAt: {
-            gte: yesterdaySerbian,
-            lt: todaySerbian,
-          },
-        },
+      let viewsToday = 0;
+      for (const r of accountReels) {
+        const baselineSnap = await prisma.reelSnapshot.findFirst({
+          where: { reelId: r.id, scrapedAt: { lt: todaySerbian } },
+          orderBy: { scrapedAt: "desc" },
+          select: { views: true },
+        });
+        const baseline = baselineSnap?.views ?? 0;
+        viewsToday += Math.max(0, r.currentViews - baseline);
+      }
+
+      // Follower delta today: current followers − followers at start of today
+      // (last snapshot taken before midnight).
+      const baselineFollowerSnap = await prisma.accountSnapshot.findFirst({
+        where: { accountId: account.id, scrapedAt: { lt: todaySerbian } },
         orderBy: { scrapedAt: "desc" },
+        select: { followers: true },
       });
-
-      const midnightFollowers = midnightSnapshot?.followers || 0;
-      const newFollowersToday = midnightFollowers > 0 ? followers - midnightFollowers : 0;
-
-      // Get previous day's total views for delta
-      const yesterdayDailyStat = await prisma.dailyStat.findUnique({
-        where: {
-          accountId_date: {
-            accountId: account.id,
-            date: yesterdaySerbian,
-          },
-        },
-      });
-
-      const previousTotalViews = yesterdayDailyStat?.instaViews || 0;
-      // New views today = current total views - yesterday's recorded total
-      // But if this is the first day, just use total views
-      const newViewsToday = previousTotalViews > 0 
-        ? Math.max(0, totalReelViews - previousTotalViews)
-        : totalReelViews;
+      const baselineFollowers = baselineFollowerSnap?.followers || 0;
+      const newFollowersToday = baselineFollowers > 0 ? followers - baselineFollowers : 0;
 
       await prisma.dailyStat.upsert({
         where: {
@@ -166,13 +157,13 @@ export async function POST(req: NextRequest) {
           },
         },
         update: {
-          instaViews: totalReelViews, // Store cumulative total views
+          instaViews: viewsToday,
           followers: newFollowersToday,
         },
         create: {
           accountId: account.id,
           date: todaySerbian,
-          instaViews: totalReelViews,
+          instaViews: viewsToday,
           followers: newFollowersToday,
         },
       });
@@ -183,7 +174,7 @@ export async function POST(req: NextRequest) {
         followers,
         newFollowersToday,
         reelsProcessed,
-        totalReelViews,
+        viewsToday,
       });
     }
 

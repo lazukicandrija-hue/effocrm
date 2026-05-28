@@ -212,157 +212,80 @@ class InstagramScraper {
     const result = { igUsername, followers: 0, following: 0, postsCount: 0, reels: [] };
 
     try {
+      // Land on the profile so the fetch below runs from the instagram.com
+      // origin with the logged-in cookies (same-origin, no CORS issues).
       if (!(await this.gotoWithRetry(`https://www.instagram.com/${igUsername}/`))) {
         log("error", `@${igUsername}: profile navigation failed after retries`);
         return result;
       }
-      await this.page.waitForTimeout(CONFIG.PAGE_LOAD_WAIT);
+      await this.page.waitForTimeout(1500);
 
-      if (await this.page.evaluate(() => document.body.innerText.includes("Sorry, this page"))) {
-        log("warn", `@${igUsername} not found!`); return null;
-      }
+      // Two same-origin authenticated calls (the same ones the IG website makes):
+      //   1. web_profile_info  -> exact follower/following/post counts + user id
+      //   2. feed/user/{id}    -> the recent media with EXACT play_count
+      //      (web_profile_info no longer returns media nodes; it only gives the
+      //       post count, so the feed endpoint is needed for per-reel views.)
+      const payload = await this.page.evaluate(async (username) => {
+        const APP_ID = "936619743392459";
+        try {
+          const r1 = await fetch(
+            `https://www.instagram.com/api/v1/users/web_profile_info/?username=${encodeURIComponent(username)}`,
+            { headers: { "x-ig-app-id": APP_ID }, credentials: "include" }
+          );
+          if (!r1.ok) return { error: `web_profile_info HTTP ${r1.status}` };
+          const j1 = await r1.json();
+          const user = j1?.data?.user;
+          if (!user) return { error: "no user in profile response" };
 
-      // Profile stats
-      const stats = await this.page.evaluate(() => {
-        const s = { followers: 0, following: 0, posts: 0 };
-        function parseCount(str) {
-          if (!str) return 0;
-          str = str.replace(/,/g, "");
-          if (str.match(/[Kk]$/)) return Math.round(parseFloat(str) * 1000);
-          if (str.match(/[Mm]$/)) return Math.round(parseFloat(str) * 1000000);
-          return parseInt(str) || 0;
-        }
-        // Meta tag
-        const meta = document.querySelector('meta[name="description"]');
-        if (meta) {
-          const c = meta.getAttribute("content") || "";
-          const fm = c.match(/([\d,.]+[KMkm]?)\s*Followers/i);
-          const gm = c.match(/([\d,.]+[KMkm]?)\s*Following/i);
-          const pm = c.match(/([\d,.]+[KMkm]?)\s*Posts/i);
-          if (fm) s.followers = parseCount(fm[1]);
-          if (gm) s.following = parseCount(gm[1]);
-          if (pm) s.posts = parseCount(pm[1]);
-        }
-        // Fallback: header li elements
-        if (s.followers === 0) {
-          const lis = document.querySelectorAll("header li, header section li");
-          lis.forEach(li => {
-            const t = li.innerText;
-            const n = t.match(/([\d,.]+[KMkm]?)/);
-            if (n) {
-              const num = parseCount(n[1]);
-              if (t.toLowerCase().includes("follower")) s.followers = num;
-              else if (t.toLowerCase().includes("following")) s.following = num;
-              else if (t.toLowerCase().includes("post")) s.posts = num;
+          const out = {
+            followers: user.edge_followed_by?.count ?? 0,
+            following: user.edge_follow?.count ?? 0,
+            postsCount: user.edge_owner_to_timeline_media?.count ?? 0,
+            reels: [],
+          };
+
+          const r2 = await fetch(
+            `https://www.instagram.com/api/v1/feed/user/${user.id}/?count=12`,
+            { headers: { "x-ig-app-id": APP_ID }, credentials: "include" }
+          );
+          if (r2.ok) {
+            const j2 = await r2.json();
+            for (const raw of j2?.items || []) {
+              const it = raw?.media || raw;
+              // media_type 2 = video; clips product_type = reel. Skip images/carousels.
+              const isReel = it.media_type === 2 || it.product_type === "clips";
+              if (!isReel || !it.code) continue;
+              out.reels.push({
+                shortcode: it.code,
+                views: it.play_count ?? it.ig_play_count ?? 0,
+                likes: it.like_count ?? 0,
+                comments: it.comment_count ?? 0,
+                thumbnailUrl: it.image_versions2?.candidates?.[0]?.url || null,
+                publishedAt: it.taken_at ? new Date(it.taken_at * 1000).toISOString() : null,
+              });
             }
-          });
-        }
-        // Exact count from title attributes
-        document.querySelectorAll("span[title]").forEach(span => {
-          const title = span.getAttribute("title");
-          const parent = span.closest("li");
-          if (parent && title) {
-            const num = parseInt(title.replace(/,/g, ""));
-            const pt = parent.innerText.toLowerCase();
-            if (pt.includes("follower")) s.followers = num;
+          } else {
+            out.feedError = `feed HTTP ${r2.status}`;
           }
-        });
-        return s;
-      });
-      Object.assign(result, { followers: stats.followers, following: stats.following, postsCount: stats.posts });
-      log("info", `@${igUsername}: ${result.followers} followers`);
+          return out;
+        } catch (e) {
+          return { error: String(e) };
+        }
+      }, igUsername);
 
-      // Reels page
-      if (!(await this.gotoWithRetry(`https://www.instagram.com/${igUsername}/reels/`))) {
-        log("error", `@${igUsername}: reels navigation failed after retries`);
+      if (payload?.error) {
+        log("error", `@${igUsername}: ${payload.error}`);
         return result;
       }
-      await this.page.waitForTimeout(CONFIG.PAGE_LOAD_WAIT);
 
-      // Wait for the reels grid to render before scrolling
-      try {
-        await this.page.waitForSelector('a[href*="/reel/"]', { timeout: 15000 });
-      } catch {
-        log("warn", `@${igUsername}: no reels appeared in grid`);
-      }
+      result.followers = payload.followers;
+      result.following = payload.following;
+      result.postsCount = payload.postsCount;
+      result.reels = payload.reels || [];
+      log("info", `@${igUsername}: ${result.followers} followers (exact)`);
+      if (payload.feedError) log("warn", `@${igUsername}: ${payload.feedError}`);
 
-      // Scroll to load all reels (don't stop until the count is stable AND non-zero)
-      let prev = 0, stableRounds = 0;
-      for (let i = 0; i < 12; i++) {
-        await this.page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-        await this.page.waitForTimeout(CONFIG.SCROLL_DELAY);
-        const cur = await this.page.evaluate(() => document.querySelectorAll('a[href*="/reel/"]').length);
-        if (cur === prev) {
-          if (cur > 0 && ++stableRounds >= 2) break;
-        } else {
-          stableRounds = 0;
-        }
-        prev = cur;
-      }
-
-      // Collect all reel data straight from the grid overlay.
-      // Each reel link renders likes, comments and views as <span>s, and IG
-      // duplicates every value, so the spans come through as pairs:
-      //   [likes, likes, comments, comments, views, views]
-      // The thumbnail is a background-image on a child div (no <img> tag).
-      const reelLinks = await this.page.evaluate(() => {
-        function parseCount(str) {
-          if (!str) return 0;
-          str = str.replace(/,/g, "").trim();
-          if (str.match(/[Kk]$/)) return Math.round(parseFloat(str) * 1000);
-          if (str.match(/[Mm]$/)) return Math.round(parseFloat(str) * 1000000);
-          return parseInt(str) || 0;
-        }
-        const items = [];
-        const seen = new Set();
-        document.querySelectorAll('a[href*="/reel/"]').forEach(link => {
-          const m = (link.getAttribute("href") || "").match(/\/reel\/([^/]+)/);
-          if (!m || seen.has(m[1])) return;
-          seen.add(m[1]);
-
-          // Thumbnail: prefer <img>, fall back to a background-image url
-          let thumbnailUrl = link.querySelector("img")?.getAttribute("src") || null;
-          if (!thumbnailUrl) {
-            const bgEl = link.querySelector('[style*="background-image"]');
-            const bg = bgEl?.getAttribute("style") || "";
-            const bm = bg.match(/background-image:\s*url\(["']?([^"')]+)["']?\)/);
-            if (bm) thumbnailUrl = bm[1].replace(/&amp;/g, "&");
-          }
-
-          // Stats: take every other span (values are duplicated) -> [likes, comments, views]
-          const spans = [...link.querySelectorAll("span")]
-            .map(s => s.innerText.trim())
-            .filter(Boolean);
-          const stats = spans.filter((_, i) => i % 2 === 0).map(parseCount);
-          let likes = 0, comments = 0, views = 0;
-          if (stats.length >= 3) {
-            likes = stats[0];
-            comments = stats[1];
-            views = Math.max(...stats); // views is always the largest of the three
-          } else if (stats.length) {
-            views = Math.max(...stats);
-          }
-
-          items.push({ shortcode: m[1], thumbnailUrl, likes, comments, views });
-        });
-        return items;
-      });
-
-      const thumbCount = reelLinks.filter(r => r.thumbnailUrl).length;
-      const viewsCount = reelLinks.filter(r => r.views > 0).length;
-      log("info", `@${igUsername}: ${reelLinks.length} reels in grid (${thumbCount} thumbnails, ${viewsCount} with views)`);
-
-      for (const rl of reelLinks) {
-        result.reels.push({
-          shortcode: rl.shortcode,
-          views: rl.views || 0,
-          likes: rl.likes || 0,
-          comments: rl.comments || 0,
-          thumbnailUrl: rl.thumbnailUrl || null,
-        });
-      }
-
-      log("success", `@${igUsername}: ${result.reels.length} reels scraped with detailed stats`);
+      log("success", `@${igUsername}: ${result.reels.length} reels scraped with exact stats`);
     } catch (error) {
       log("error", `Failed @${igUsername}: ${error.message}`);
     }
