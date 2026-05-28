@@ -111,11 +111,12 @@ export async function POST(req: NextRequest) {
 
       // 4. Update DailyStat for today
       // "Views today" is the number of views GAINED today, not the lifetime
-      // total. We compute it per reel as (current views − the reel's view
-      // count at the start of today) and sum across all reels. This naturally
-      // captures an older reel that suddenly gains views today, and ignores
-      // reels that are dormant (delta 0). A reel first seen today has no prior
-      // snapshot, so all of its views count as gained today.
+      // total. It is computed purely from snapshots and ONLY for reels we
+      // actually measured today: for each such reel, (latest snapshot today −
+      // last snapshot before today). This captures an older reel that surges
+      // today, ignores dormant reels, and — crucially — never counts a reel we
+      // didn't re-measure (stale data) or dumps a reel's whole back-catalogue
+      // the first time we see it (no prior baseline ⇒ contributes 0 that day).
 
       // Today's midnight in Serbian time (UTC+2 CEST; switch to 1 for CET).
       const now = new Date();
@@ -123,20 +124,32 @@ export async function POST(req: NextRequest) {
       const serbianNow = new Date(now.getTime() + serbianOffset * 60 * 60 * 1000);
       const todaySerbian = new Date(serbianNow.toISOString().split("T")[0] + "T00:00:00.000Z");
 
-      const accountReels = await prisma.reel.findMany({
-        where: { accountId: account.id },
-        select: { id: true, currentViews: true },
+      // Only reels with a snapshot taken today (i.e. measured this run/day).
+      const reelsMeasuredToday = await prisma.reel.findMany({
+        where: {
+          accountId: account.id,
+          snapshots: { some: { scrapedAt: { gte: todaySerbian } } },
+        },
+        select: { id: true },
       });
 
       let viewsToday = 0;
-      for (const r of accountReels) {
+      for (const r of reelsMeasuredToday) {
+        const latestToday = await prisma.reelSnapshot.findFirst({
+          where: { reelId: r.id, scrapedAt: { gte: todaySerbian } },
+          orderBy: { scrapedAt: "desc" },
+          select: { views: true },
+        });
         const baselineSnap = await prisma.reelSnapshot.findFirst({
           where: { reelId: r.id, scrapedAt: { lt: todaySerbian } },
           orderBy: { scrapedAt: "desc" },
           select: { views: true },
         });
-        const baseline = baselineSnap?.views ?? 0;
-        viewsToday += Math.max(0, r.currentViews - baseline);
+        if (!latestToday) continue;
+        // No prior baseline ⇒ first time we've seen this reel; count 0 today
+        // rather than dumping its entire view count.
+        const baseline = baselineSnap?.views ?? latestToday.views;
+        viewsToday += Math.max(0, latestToday.views - baseline);
       }
 
       // Follower delta today: current followers − followers at start of today
