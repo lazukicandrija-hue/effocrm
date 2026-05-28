@@ -140,16 +140,31 @@ export async function POST(req: NextRequest) {
           orderBy: { scrapedAt: "desc" },
           select: { views: true },
         });
+        if (!latestToday) continue;
+
+        // Reference = the reel's view count at the start of today: the last
+        // snapshot before midnight if we have one. For a reel first seen today
+        // (e.g. just posted, or right after a baseline reset) there is no prior
+        // snapshot, so fall back to its FIRST snapshot today — that way views
+        // gained over the rest of today still count, instead of dumping the
+        // reel's whole view count as "today".
         const baselineSnap = await prisma.reelSnapshot.findFirst({
           where: { reelId: r.id, scrapedAt: { lt: todaySerbian } },
           orderBy: { scrapedAt: "desc" },
           select: { views: true },
         });
-        if (!latestToday) continue;
-        // No prior baseline ⇒ first time we've seen this reel; count 0 today
-        // rather than dumping its entire view count.
-        const baseline = baselineSnap?.views ?? latestToday.views;
-        viewsToday += Math.max(0, latestToday.views - baseline);
+        let referenceViews: number;
+        if (baselineSnap) {
+          referenceViews = baselineSnap.views;
+        } else {
+          const firstToday = await prisma.reelSnapshot.findFirst({
+            where: { reelId: r.id, scrapedAt: { gte: todaySerbian } },
+            orderBy: { scrapedAt: "asc" },
+            select: { views: true },
+          });
+          referenceViews = firstToday?.views ?? latestToday.views;
+        }
+        viewsToday += Math.max(0, latestToday.views - referenceViews);
       }
 
       // Follower delta today: current followers − followers at start of today
