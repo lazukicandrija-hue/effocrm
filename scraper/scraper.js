@@ -60,7 +60,10 @@ class InstagramScraper {
 
   async login() {
     log("info", "Checking login status...");
-    await this.page.goto("https://www.instagram.com/", { waitUntil: "domcontentloaded", timeout: 30000 });
+    if (!(await this.gotoWithRetry("https://www.instagram.com/"))) {
+      log("error", "Could not reach instagram.com after retries; skipping this run");
+      return false;
+    }
     await this.page.waitForTimeout(5000);
 
     // Check if logged in
@@ -101,7 +104,10 @@ class InstagramScraper {
 
     // Standard login
     log("info", "Attempting standard login...");
-    await this.page.goto("https://www.instagram.com/accounts/login/", { waitUntil: "domcontentloaded", timeout: 30000 });
+    if (!(await this.gotoWithRetry("https://www.instagram.com/accounts/login/"))) {
+      log("error", "Could not reach the login page after retries; skipping this run");
+      return false;
+    }
     await this.page.waitForTimeout(5000);
 
     // Cookie consent
