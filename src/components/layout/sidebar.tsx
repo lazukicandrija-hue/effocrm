@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
+import ThemeToggle from "./theme-toggle";
 import {
   LayoutDashboard,
   PlusCircle,
@@ -101,6 +102,9 @@ export default function Sidebar() {
 
       {/* User section */}
       <div className="px-3 py-4 border-t border-white/5">
+        <div className="mb-1">
+          <ThemeToggle collapsed={collapsed} />
+        </div>
         {!collapsed && session?.user && (
           <div className="px-3 py-2 mb-2">
             <p className="text-sm font-medium" style={{ color: "#f5e6c8" }}>
