@@ -33,7 +33,7 @@ export default function ThemeToggle({ collapsed }: { collapsed?: boolean }) {
         aria-hidden
       >
         <Moon className="h-5 w-5 flex-shrink-0" />
-        {!collapsed && <span>Tema</span>}
+        {!collapsed && <span>Dark mode</span>}
       </button>
     );
   }
@@ -51,7 +51,7 @@ export default function ThemeToggle({ collapsed }: { collapsed?: boolean }) {
       ) : (
         <Moon className="h-5 w-5 flex-shrink-0" />
       )}
-      {!collapsed && <span>{isDark ? "Svetla tema" : "Tamna tema"}</span>}
+      {!collapsed && <span>Dark mode</span>}
     </button>
   );
 }
