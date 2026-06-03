@@ -292,6 +292,31 @@ export default function AccountsPage() {
     }
   };
 
+  // Inline toggle for boolean flags (FB / Bio Link) — click the cell directly
+  // instead of opening the editor. Optimistic update, reverts if the save fails.
+  const toggleAccountFlag = async (
+    account: any,
+    field: "hasFacebook" | "linkInBio"
+  ) => {
+    const newValue = !account[field];
+    setAccounts((prev) =>
+      prev.map((a) => (a.id === account.id ? { ...a, [field]: newValue } : a))
+    );
+    try {
+      const res = await fetch(`/api/accounts/${account.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [field]: newValue }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      setAccounts((prev) =>
+        prev.map((a) => (a.id === account.id ? { ...a, [field]: !newValue } : a))
+      );
+      alert("Failed to update — please try again.");
+    }
+  };
+
   const SortableHead = ({ label, field }: { label: string; field: string }) => (
     <TableHead
       className="cursor-pointer select-none hover:text-gray-700 transition-colors"
@@ -525,24 +550,38 @@ export default function AccountsPage() {
                         {formatNumber(account.totalViews)}
                       </TableCell>
                       <TableCell className="text-center">
-                        {account.hasFacebook ? (
-                          account.fbPageLink ? (
-                            <a href={account.fbPageLink} target="_blank" rel="noopener noreferrer">
-                              <Check className="h-4 w-4 text-green-500 inline" />
-                            </a>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleAccountFlag(account, "hasFacebook");
+                          }}
+                          title={account.hasFacebook ? "Facebook: on — click to turn off" : "Facebook: off — click to turn on"}
+                          className="p-1.5 rounded-md hover:bg-gray-100 transition-colors inline-flex items-center justify-center cursor-pointer"
+                        >
+                          {account.hasFacebook ? (
+                            <Check className="h-4 w-4 text-green-500" />
                           ) : (
-                            <Check className="h-4 w-4 text-green-500 inline" />
-                          )
-                        ) : (
-                          <span className="text-gray-300">—</span>
-                        )}
+                            <span className="text-gray-300 leading-none">—</span>
+                          )}
+                        </button>
                       </TableCell>
                       <TableCell className="text-center">
-                        {account.linkInBio ? (
-                          <Check className="h-4 w-4 text-green-500 inline" />
-                        ) : (
-                          <span className="text-gray-300">—</span>
-                        )}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleAccountFlag(account, "linkInBio");
+                          }}
+                          title={account.linkInBio ? "Bio link: on — click to turn off" : "Bio link: off — click to turn on"}
+                          className="p-1.5 rounded-md hover:bg-gray-100 transition-colors inline-flex items-center justify-center cursor-pointer"
+                        >
+                          {account.linkInBio ? (
+                            <Check className="h-4 w-4 text-green-500" />
+                          ) : (
+                            <span className="text-gray-300 leading-none">—</span>
+                          )}
+                        </button>
                       </TableCell>
                       <TableCell className="text-sm text-gray-500 whitespace-nowrap">
                         {account.lastPost ? formatDate(account.lastPost) : "—"}
