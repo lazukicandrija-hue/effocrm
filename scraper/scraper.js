@@ -25,7 +25,9 @@ const CONFIG = {
   IG_PASSWORD: process.env.IG_PASSWORD || "mB8eXrFQuo",
   CRM_URL: process.env.CRM_URL || "https://effortless-crm-vn4uw.ondigitalocean.app",
   SCRAPER_SECRET: process.env.SCRAPER_SECRET || "effortless-scraper-2026",
-  ACCOUNTS: ["brooxpoppy", "poppybroooks", "xpoppybrooks", "poppybroo"],
+  // Fallback only — used if the CRM account list can't be fetched. Normally the
+  // scraper pulls EVERY account that has an IG username from the CRM Accounts tab.
+  FALLBACK_ACCOUNTS: ["brooxpoppy", "poppybroooks", "xpoppybrooks", "poppybroo"],
   SESSION_FILE: path.join(__dirname, ".ig-session.json"),
   DELAY_BETWEEN_ACCOUNTS: 5000,
   PAGE_LOAD_WAIT: 4000,
@@ -316,6 +318,35 @@ class InstagramScraper {
     }
   }
 
+  // Pull the live account list from the CRM Accounts tab — every account that
+  // has an IG username set. Falls back to FALLBACK_ACCOUNTS if the CRM can't be
+  // reached, so a network blip never leaves the run with nothing to scrape.
+  async fetchAccounts() {
+    try {
+      const res = await fetch(`${CONFIG.CRM_URL}/api/scraper/sync`, {
+        headers: { Authorization: `Bearer ${CONFIG.SCRAPER_SECRET}` },
+      });
+      if (!res.ok) {
+        log("warn", `Couldn't fetch CRM account list (HTTP ${res.status}); using fallback list`);
+        return CONFIG.FALLBACK_ACCOUNTS;
+      }
+      const data = await res.json();
+      const list = (data.accounts || [])
+        .map((a) => (a.igUsername || "").trim().toLowerCase())
+        .filter(Boolean);
+      const unique = [...new Set(list)];
+      if (unique.length === 0) {
+        log("warn", "CRM returned no accounts with an IG username; using fallback list");
+        return CONFIG.FALLBACK_ACCOUNTS;
+      }
+      log("success", `Fetched ${unique.length} account(s) from the CRM Accounts tab`);
+      return unique;
+    } catch (e) {
+      log("warn", `Account list fetch failed (${e.message}); using fallback list`);
+      return CONFIG.FALLBACK_ACCOUNTS;
+    }
+  }
+
   async runOnce() {
     const isLoginOnly = process.argv.includes("--login-only");
     try {
@@ -324,13 +355,14 @@ class InstagramScraper {
       if (!ok) { log("error", "Login failed!"); return; }
       if (isLoginOnly) { log("success", "Session saved. You can now run headless."); return; }
 
+      const accounts = await this.fetchAccounts();
       const results = [];
-      for (const u of CONFIG.ACCOUNTS) {
+      for (const u of accounts) {
         const r = await this.scrapeAccount(u);
         if (r) results.push(r);
         await this.page.waitForTimeout(CONFIG.DELAY_BETWEEN_ACCOUNTS);
       }
-      log("info", `Scraped ${results.length}/${CONFIG.ACCOUNTS.length} accounts`);
+      log("info", `Scraped ${results.length}/${accounts.length} accounts`);
       if (results.length > 0) await this.syncToCRM(results);
       await this.saveSession();
     } catch (error) {
