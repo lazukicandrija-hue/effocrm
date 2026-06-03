@@ -93,7 +93,14 @@ class InstagramScraper {
       ...(storageState ? { storageState } : {}),
     });
     this.page = await this.context.newPage();
-    await this.page.route("**/*.{mp4,webm,woff,woff2}", (r) => r.abort());
+    // Block heavy resources to save proxy bandwidth — we read all data from
+    // Instagram's JSON API (xhr/fetch), never from images/video/fonts. Filter by
+    // resource TYPE (robust against query-string URLs) and keep css/js/xhr/fetch.
+    await this.page.route("**/*", (route) => {
+      const type = route.request().resourceType();
+      if (type === "image" || type === "media" || type === "font") return route.abort();
+      return route.continue();
+    });
   }
 
   async login() {
