@@ -40,4 +40,5 @@ next-env.d.ts
 do-app-spec.json
 scraper/node_modules/
 scraper/.ig-session.json
+scraper/proxy.json
 scraper/*.log

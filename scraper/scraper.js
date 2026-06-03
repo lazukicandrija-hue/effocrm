@@ -41,12 +41,48 @@ function log(level, msg, data = null) {
   if (data) console.log(JSON.stringify(data, null, 2));
 }
 
+// Optional proxy. Instagram blocks datacenter IPs, so on a VPS you should route
+// through a residential/ISP proxy with a STICKY (non-rotating) IP. Configure it
+// either via env (PROXY_SERVER / PROXY_USERNAME / PROXY_PASSWORD) or a gitignored
+// proxy.json next to this file:  { "server": "host:port", "username": "...", "password": "..." }
+function loadProxy() {
+  if (process.env.PROXY_SERVER) {
+    return {
+      server: process.env.PROXY_SERVER,
+      username: process.env.PROXY_USERNAME || undefined,
+      password: process.env.PROXY_PASSWORD || undefined,
+    };
+  }
+  const f = path.join(__dirname, "proxy.json");
+  if (fs.existsSync(f)) {
+    try {
+      const j = JSON.parse(fs.readFileSync(f, "utf-8"));
+      if (j && j.server) {
+        return { server: j.server, username: j.username, password: j.password };
+      }
+    } catch (e) {
+      log("warn", `proxy.json present but unreadable: ${e.message}`);
+    }
+  }
+  return null;
+}
+
 class InstagramScraper {
   constructor() { this.browser = null; this.context = null; this.page = null; }
 
   async init(headless = true) {
     log("info", `Launching browser (headless: ${headless})...`);
-    this.browser = await chromium.launch({ headless, args: ["--no-sandbox"] });
+    const launchOpts = { headless, args: ["--no-sandbox"] };
+    const proxy = loadProxy();
+    if (proxy) {
+      let server = String(proxy.server).trim();
+      if (!/^\w+:\/\//.test(server)) server = "http://" + server; // default to http://
+      launchOpts.proxy = { server, username: proxy.username, password: proxy.password };
+      log("info", `Routing traffic through proxy: ${server}`);
+    } else {
+      log("warn", "No proxy configured — Instagram often blocks datacenter/VPS IPs. Set proxy.json or PROXY_SERVER.");
+    }
+    this.browser = await chromium.launch(launchOpts);
     const storageState = fs.existsSync(CONFIG.SESSION_FILE)
       ? JSON.parse(fs.readFileSync(CONFIG.SESSION_FILE, "utf-8"))
       : undefined;
@@ -347,10 +383,28 @@ class InstagramScraper {
     }
   }
 
+  // Logs the current outbound IP (through the proxy, if set) so you can confirm
+  // in scraper.log that it stays the SAME across hourly runs — a changing IP is
+  // the #1 thing that gets a logged-in Instagram account flagged.
+  async logEgressIp() {
+    try {
+      await this.page.goto("https://ipinfo.io/json", { timeout: 20000, waitUntil: "domcontentloaded" });
+      const info = await this.page.evaluate(() => {
+        try { return JSON.parse(document.body.innerText); } catch { return null; }
+      });
+      if (info && info.ip) {
+        log("info", `Egress IP: ${info.ip} (${info.city || "?"}, ${info.country || "?"})`);
+      }
+    } catch (e) {
+      log("warn", `Could not check egress IP: ${e.message}`);
+    }
+  }
+
   async runOnce() {
     const isLoginOnly = process.argv.includes("--login-only");
     try {
       await this.init(!isLoginOnly); // headed for login-only
+      await this.logEgressIp();
       const ok = await this.login();
       if (!ok) { log("error", "Login failed!"); return; }
       if (isLoginOnly) { log("success", "Session saved. You can now run headless."); return; }
