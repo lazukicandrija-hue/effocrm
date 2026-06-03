@@ -30,7 +30,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatNumber, formatExact, formatDate } from "@/lib/utils";
+import { formatNumber, formatExact } from "@/lib/utils";
 import {
   Search,
   Plus,
@@ -91,6 +91,43 @@ const emptyForm = {
 function toDateInput(v: any): string {
   if (!v) return "";
   return new Date(v).toISOString().slice(0, 10);
+}
+
+// Inline date cell: shows a short date ("Jun 3") with a transparent native date
+// picker overlaid on top — click anywhere on the cell to open the calendar.
+function DateCell({
+  value,
+  onPick,
+}: {
+  value: any;
+  onPick: (v: string) => void;
+}) {
+  const display = value
+    ? new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+    : "—";
+  return (
+    <div className="relative inline-flex items-center justify-center min-w-[56px] px-2 py-1 rounded-md hover:bg-gray-100 transition-colors">
+      <span className={value ? "text-gray-700" : "text-gray-300"}>{display}</span>
+      <input
+        type="date"
+        value={value ? new Date(value).toISOString().slice(0, 10) : ""}
+        onChange={(e) => onPick(e.target.value)}
+        onClick={(e) => {
+          e.stopPropagation();
+          const el = e.currentTarget as HTMLInputElement & {
+            showPicker?: () => void;
+          };
+          if (typeof el.showPicker === "function") {
+            try {
+              el.showPicker();
+            } catch {}
+          }
+        }}
+        title="Pick a date"
+        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+      />
+    </div>
+  );
 }
 
 export default function AccountsPage() {
@@ -314,6 +351,32 @@ export default function AccountsPage() {
         prev.map((a) => (a.id === account.id ? { ...a, [field]: !newValue } : a))
       );
       alert("Failed to update — please try again.");
+    }
+  };
+
+  // Inline date picker for lastPost / accountCreatedDate. value is "yyyy-mm-dd" or ""
+  const setAccountDate = async (
+    account: any,
+    field: "lastPost" | "accountCreatedDate",
+    value: string
+  ) => {
+    const newVal = value || null;
+    const prevVal = account[field];
+    setAccounts((prev) =>
+      prev.map((a) => (a.id === account.id ? { ...a, [field]: newVal } : a))
+    );
+    try {
+      const res = await fetch(`/api/accounts/${account.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [field]: newVal }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      setAccounts((prev) =>
+        prev.map((a) => (a.id === account.id ? { ...a, [field]: prevVal } : a))
+      );
+      alert("Failed to update date — please try again.");
     }
   };
 
@@ -583,11 +646,17 @@ export default function AccountsPage() {
                           )}
                         </button>
                       </TableCell>
-                      <TableCell className="text-sm text-gray-500 whitespace-nowrap">
-                        {account.lastPost ? formatDate(account.lastPost) : "—"}
+                      <TableCell className="text-sm whitespace-nowrap">
+                        <DateCell
+                          value={account.lastPost}
+                          onPick={(v) => setAccountDate(account, "lastPost", v)}
+                        />
                       </TableCell>
-                      <TableCell className="text-sm text-gray-500 whitespace-nowrap">
-                        {account.accountCreatedDate ? formatDate(account.accountCreatedDate) : "—"}
+                      <TableCell className="text-sm whitespace-nowrap">
+                        <DateCell
+                          value={account.accountCreatedDate}
+                          onPick={(v) => setAccountDate(account, "accountCreatedDate", v)}
+                        />
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center justify-end gap-1">
