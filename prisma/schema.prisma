@@ -208,3 +208,12 @@ model ScraperConfig {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }
+
+// Single-row control table the CRM uses to ask the VPS scraper for an on-demand
+// run. The "Refresh now" button sets refreshRequestedAt; the scraper's frequent
+// --if-requested check claims (clears) it and runs a full scrape.
+model ScraperControl {
+  id                 String    @id @default("singleton")
+  refreshRequestedAt DateTime?
+  updatedAt          DateTime  @updatedAt
+}

@@ -61,6 +61,15 @@ const statements = [
      EXCEPTION WHEN duplicate_object THEN null;
      END $$;`,
   ],
+  [
+    "ScraperControl table",
+    `CREATE TABLE IF NOT EXISTS "ScraperControl" (
+       "id" TEXT NOT NULL,
+       "refreshRequestedAt" TIMESTAMP(3),
+       "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+       CONSTRAINT "ScraperControl_pkey" PRIMARY KEY ("id")
+     );`,
+  ],
 ];
 
 async function main() {

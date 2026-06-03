@@ -88,6 +88,23 @@ function loadIgAccount() {
   return null;
 }
 
+// Ask the CRM whether a manual "Refresh now" was requested. Returns true (and
+// clears the request) if so. Cheap — one HTTP call, no browser launched.
+async function claimRefresh() {
+  try {
+    const res = await fetch(`${CONFIG.CRM_URL}/api/scraper/claim-refresh`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${CONFIG.SCRAPER_SECRET}` },
+    });
+    if (!res.ok) return false;
+    const data = await res.json();
+    return !!data.claimed;
+  } catch (e) {
+    log("warn", `claim-refresh check failed: ${e.message}`);
+    return false;
+  }
+}
+
 class InstagramScraper {
   constructor() { this.browser = null; this.context = null; this.page = null; }
 
@@ -475,6 +492,16 @@ class InstagramScraper {
 async function main() {
   const scraper = new InstagramScraper();
   if (process.argv.includes("--once") || process.argv.includes("--login-only")) {
+    await scraper.runOnce();
+  } else if (process.argv.includes("--if-requested")) {
+    // Frequent, cheap check used by the "Refresh now" button: only scrape if the
+    // CRM raised the flag. Almost always a no-op (a single HTTP call, no browser).
+    const claimed = await claimRefresh();
+    if (!claimed) {
+      log("info", "No manual refresh requested — nothing to do.");
+      return;
+    }
+    log("info", "Manual refresh requested from the CRM — running a scrape now.");
     await scraper.runOnce();
   } else {
     await scraper.runScheduled(parseInt(process.env.SCRAPE_INTERVAL || "3600000"));

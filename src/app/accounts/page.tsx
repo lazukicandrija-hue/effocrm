@@ -42,6 +42,7 @@ import {
   ArrowUpDown,
   Check,
   GripVertical,
+  RefreshCw,
 } from "lucide-react";
 
 const NICHE_OPTIONS = ["Golf", "Talking", "Omegle", "Podcast", "Dancing", "Motion Control"];
@@ -156,6 +157,7 @@ export default function AccountsPage() {
   const [formData, setFormData] = useState({ ...emptyForm });
   const [saving, setSaving] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   const fetchAccounts = useCallback(async () => {
     setLoading(true);
@@ -181,6 +183,67 @@ export default function AccountsPage() {
       setLoading(false);
     }
   }, [page, search, filterModel, filterNiche, filterStatus, sortBy, sortOrder]);
+
+  // Re-fetch the table without the loading skeleton (used while polling after a
+  // manual refresh, so the numbers update in place).
+  const refreshAccountsQuietly = useCallback(async (): Promise<any[]> => {
+    try {
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: "20",
+        search,
+        modelId: filterModel,
+        niche: filterNiche,
+        status: filterStatus,
+        sortBy,
+        sortOrder,
+      });
+      const res = await fetch(`/api/accounts?${params}`);
+      const data = await res.json();
+      setAccounts(data.accounts || []);
+      return data.accounts || [];
+    } catch {
+      return [];
+    }
+  }, [page, search, filterModel, filterNiche, filterStatus, sortBy, sortOrder]);
+
+  // "Refresh now": ask the VPS scraper for an immediate run, then poll until the
+  // data actually updates (the scraper bumps each account's lastSyncedAt).
+  const handleRefreshNow = async () => {
+    if (refreshing) return;
+    const baseline = Math.max(
+      0,
+      ...accounts.map((a) =>
+        a.lastSyncedAt ? new Date(a.lastSyncedAt).getTime() : 0
+      )
+    );
+    setRefreshing(true);
+    try {
+      const res = await fetch("/api/scraper/request-refresh", { method: "POST" });
+      if (!res.ok) throw new Error();
+    } catch {
+      alert("Couldn't queue a refresh — please try again.");
+      setRefreshing(false);
+      return;
+    }
+    const start = Date.now();
+    const poll = async () => {
+      if (Date.now() - start > 6 * 60 * 1000) {
+        setRefreshing(false); // timed out — scrape may still land shortly
+        return;
+      }
+      const accts = await refreshAccountsQuietly();
+      const fresh = accts.some(
+        (a) => a.lastSyncedAt && new Date(a.lastSyncedAt).getTime() > baseline
+      );
+      if (fresh) {
+        setRefreshing(false);
+        return;
+      }
+      setTimeout(poll, 20000);
+    };
+    setTimeout(poll, 20000);
+  };
 
   const fetchModels = useCallback(async () => {
     try {
@@ -423,10 +486,22 @@ export default function AccountsPage() {
               {total} Instagram account{total !== 1 ? "s" : ""} managed
             </p>
           </div>
-          <Button onClick={openAddModal} className="gap-2">
-            <Plus className="h-4 w-4" />
-            Add Account
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={handleRefreshNow}
+              disabled={refreshing}
+              className="gap-2"
+              title="Trigger an immediate scrape on the VPS — numbers update in ~2–4 min"
+            >
+              <RefreshCw className={"h-4 w-4 " + (refreshing ? "animate-spin" : "")} />
+              {refreshing ? "Refreshing…" : "Refresh now"}
+            </Button>
+            <Button onClick={openAddModal} className="gap-2">
+              <Plus className="h-4 w-4" />
+              Add Account
+            </Button>
+          </div>
         </div>
 
         {/* Filters */}
