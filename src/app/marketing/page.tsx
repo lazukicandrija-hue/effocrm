@@ -237,7 +237,8 @@ export default function MarketingPage() {
 
   const openAddModal = () => {
     setEditing(null);
-    setFormData({ ...emptyForm });
+    // Default to the first model (Poppy) so every new idea is pre-assigned
+    setFormData({ ...emptyForm, modelId: models[0]?.id || "" });
     lastPreviewedUrl.current = "";
     setAddingNiche(false);
     setCustomNiche("");
