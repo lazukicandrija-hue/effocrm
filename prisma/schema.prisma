@@ -35,6 +35,13 @@ enum Status {
   BANNED
 }
 
+// Recreation progress for a saved marketing inspiration reel
+enum InspirationStatus {
+  IDEA
+  RECREATING
+  DONE
+}
+
 // ============================================
 // MODELS
 // ============================================
@@ -50,12 +57,13 @@ model User {
 }
 
 model Model {
-  id        String    @id @default(cuid())
-  name      String
-  photo     String?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  accounts  Account[]
+  id           String        @id @default(cuid())
+  name         String
+  photo        String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  accounts     Account[]
+  inspirations Inspiration[]
 }
 
 model Account {
@@ -106,6 +114,32 @@ model DailyStat {
   @@unique([accountId, date])
   @@index([accountId])
   @@index([date])
+}
+
+// ============================================
+// MARKETING / INSPIRATION
+// ============================================
+
+// A reel/post from another creator saved as inspiration to recreate
+model Inspiration {
+  id           String            @id @default(cuid())
+  url          String            // link to the reel/post
+  platform     String?           // instagram | tiktok | youtube | other (derived from url)
+  creator      String?           // the other creator's handle/name
+  title        String?           // short label / caption
+  thumbnailUrl String?           @db.Text  // auto-fetched or manually pasted preview image
+  niche        String[]          @default([])  // multi-select, reuses Account niches + custom
+  notes        String?           @db.Text  // why I like it / why we should recreate it
+  status       InspirationStatus @default(IDEA)  // recreation progress
+  modelId      String?           // optional: which of our models this is for
+  model        Model?            @relation(fields: [modelId], references: [id], onDelete: SetNull)
+  position     Int               @default(0)  // manual sort order (lower = first)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  @@index([modelId])
+  @@index([status])
+  @@index([position])
 }
 
 // ============================================

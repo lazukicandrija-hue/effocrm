@@ -7,11 +7,21 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Missing url param" }, { status: 400 });
   }
 
+  // Pick a referer that matches the CDN host (some CDNs hotlink-protect by referer).
+  // Instagram/fbcdn behaviour is preserved as the default.
+  const lower = url.toLowerCase();
+  let referer = "https://www.instagram.com/";
+  if (lower.includes("tiktokcdn") || lower.includes("tiktok")) {
+    referer = "https://www.tiktok.com/";
+  } else if (lower.includes("ytimg") || lower.includes("youtube") || lower.includes("ggpht")) {
+    referer = "https://www.youtube.com/";
+  }
+
   try {
     const response = await fetch(url, {
       headers: {
         "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
-        "Referer": "https://www.instagram.com/",
+        "Referer": referer,
       },
       // Cache for 1 hour
       next: { revalidate: 3600 },

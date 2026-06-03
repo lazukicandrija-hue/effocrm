@@ -17,12 +17,14 @@ import {
   Camera,
   UsersRound,
   Film,
+  Lightbulb,
 } from "lucide-react";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Accounts", href: "/accounts", icon: Camera },
   { name: "Reels Analytics", href: "/reels", icon: Film },
+  { name: "Marketing", href: "/marketing", icon: Lightbulb },
   { name: "Add Views", href: "/add-views", icon: PlusCircle },
   { name: "Models", href: "/models", icon: UserCircle },
   { name: "Team", href: "/team", icon: UsersRound },
