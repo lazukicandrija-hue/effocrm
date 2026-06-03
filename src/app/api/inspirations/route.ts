@@ -108,7 +108,10 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error("Inspiration create error:", error);
     return NextResponse.json(
-      { error: "Failed to create inspiration" },
+      {
+        error: "Failed to create inspiration",
+        detail: error instanceof Error ? error.message : String(error),
+      },
       { status: 500 }
     );
   }

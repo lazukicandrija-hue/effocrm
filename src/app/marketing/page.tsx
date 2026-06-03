@@ -301,7 +301,7 @@ export default function MarketingPage() {
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        alert(err.error || "Failed to save");
+        alert(err.detail || err.error || "Failed to save");
         return;
       }
       setShowModal(false);
