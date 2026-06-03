@@ -2,6 +2,8 @@
 // - TikTok & YouTube expose public oEmbed endpoints (no token) -> reliable thumbnails.
 // - Instagram / everything else: scrape Open Graph tags with a Googlebot UA (best-effort).
 
+import { creatorFromTitle } from "./utils";
+
 export type LinkPreview = {
   platform: string; // instagram | tiktok | youtube | other
   thumbnailUrl: string | null;
@@ -130,10 +132,10 @@ export async function fetchLinkPreview(url: string): Promise<LinkPreview> {
         extractMeta(html, "og:title") ||
         extractMeta(html, "twitter:title") ||
         result.title;
-      // Instagram og:title looks like: "Name (@handle) • Instagram reel"
+      // Instagram og:title looks like: 'Name on Instagram: "caption..."'
+      // or 'Name (@handle) on Instagram' — pull out a clean creator label.
       if (!result.creator) {
-        const handle = (result.title || "").match(/@([A-Za-z0-9_.]+)/);
-        if (handle) result.creator = `@${handle[1]}`;
+        result.creator = creatorFromTitle(result.title);
       }
     }
   } catch {

@@ -22,7 +22,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { formatDate } from "@/lib/utils";
+import { formatDate, creatorFromTitle } from "@/lib/utils";
 import {
   Search,
   Plus,
@@ -484,21 +484,19 @@ export default function MarketingPage() {
                   {/* Body */}
                   <CardContent className="p-4 flex flex-col gap-3 flex-1">
                     <div>
-                      {item.creator && (
-                        <a
-                          href={item.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sm font-semibold text-gray-900 hover:text-[#d4a853] transition-colors break-words"
-                        >
-                          {item.creator}
-                        </a>
-                      )}
-                      {item.title && (
-                        <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">
-                          {item.title}
-                        </p>
-                      )}
+                      <a
+                        href={item.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title={item.title || undefined}
+                        className="text-sm font-semibold text-gray-900 hover:text-[#d4a853] transition-colors break-words"
+                      >
+                        {item.creator ||
+                          creatorFromTitle(item.title) ||
+                          (item.platform && item.platform !== "other"
+                            ? `View on ${item.platform[0].toUpperCase()}${item.platform.slice(1)}`
+                            : "Open reel")}
+                      </a>
                     </div>
 
                     {/* Niches */}

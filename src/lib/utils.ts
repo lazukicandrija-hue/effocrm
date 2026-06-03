@@ -33,6 +33,20 @@ export function formatDate(date: Date | string): string {
   });
 }
 
+// Derive a clean creator label from a noisy social title such as
+//   'Nastya Fileva on Instagram: "caption..."'  ->  "Nastya Fileva"
+//   'Name (@handle) on TikTok'                  ->  "@handle"
+export function creatorFromTitle(title?: string | null): string | null {
+  if (!title) return null;
+  const handle = title.match(/\(@([A-Za-z0-9_.]+)\)/);
+  if (handle) return "@" + handle[1];
+  const onPlatform = title.match(
+    /^(.*?)\s+on\s+(Instagram|TikTok|YouTube|Facebook|Twitter)\b/i
+  );
+  if (onPlatform && onPlatform[1].trim()) return onPlatform[1].trim();
+  return null;
+}
+
 // Days between two dates
 export function daysBetween(start: Date | string, end: Date | string = new Date()): number {
   const startDate = new Date(start);
