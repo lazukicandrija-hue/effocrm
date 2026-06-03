@@ -35,7 +35,6 @@ import {
   RefreshCw,
   X,
   UserCircle,
-  StickyNote,
 } from "lucide-react";
 
 // ---- Niches (reuse Accounts niches + any custom ones already saved) ----
@@ -404,14 +403,14 @@ export default function MarketingPage() {
 
         {/* Board */}
         {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-            {[...Array(4)].map((_, i) => (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
+            {[...Array(12)].map((_, i) => (
               <Card key={i} className="overflow-hidden">
                 <div className="aspect-[4/5] bg-gray-200 animate-pulse" />
-                <CardContent className="p-4 space-y-3">
-                  <div className="h-4 bg-gray-200 rounded animate-pulse w-2/3" />
-                  <div className="h-3 bg-gray-200 rounded animate-pulse w-full" />
-                  <div className="h-3 bg-gray-200 rounded animate-pulse w-1/2" />
+                <CardContent className="p-2.5 space-y-2">
+                  <div className="h-3 bg-gray-200 rounded animate-pulse w-2/3" />
+                  <div className="h-2.5 bg-gray-200 rounded animate-pulse w-full" />
+                  <div className="h-2.5 bg-gray-200 rounded animate-pulse w-1/2" />
                 </CardContent>
               </Card>
             ))}
@@ -432,7 +431,7 @@ export default function MarketingPage() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
             {items.map((item, idx) => {
               const st = STATUS_META[item.status] || STATUS_META.IDEA;
               return (
@@ -448,65 +447,64 @@ export default function MarketingPage() {
                     </a>
                     {/* Status pill */}
                     <span
-                      className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-full text-[11px] font-semibold text-white shadow-sm"
+                      className="absolute top-2 left-2 px-1.5 py-0.5 rounded-full text-[10px] font-semibold text-white shadow-sm leading-none"
                       style={{ backgroundColor: st.color }}
                     >
                       {st.label}
                     </span>
                     {/* Hover actions */}
-                    <div className="absolute top-2.5 right-2.5 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <a
                         href={item.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="p-1.5 rounded-lg bg-white/90 backdrop-blur-sm text-gray-600 hover:text-[#d4a853] shadow-sm"
+                        className="p-1 rounded-md bg-white/90 backdrop-blur-sm text-gray-600 hover:text-[#d4a853] shadow-sm"
                         title="Open reel"
                       >
-                        <ExternalLink className="h-4 w-4" />
+                        <ExternalLink className="h-3.5 w-3.5" />
                       </a>
                       <button
                         onClick={() => openEditModal(item)}
-                        className="p-1.5 rounded-lg bg-white/90 backdrop-blur-sm text-gray-600 hover:text-gray-900 shadow-sm"
+                        className="p-1 rounded-md bg-white/90 backdrop-blur-sm text-gray-600 hover:text-gray-900 shadow-sm"
                         title="Edit"
                       >
-                        <Pencil className="h-4 w-4" />
+                        <Pencil className="h-3.5 w-3.5" />
                       </button>
                       <button
                         onClick={() => setDeleteConfirm(item.id)}
-                        className="p-1.5 rounded-lg bg-white/90 backdrop-blur-sm text-gray-600 hover:text-red-500 shadow-sm"
+                        className="p-1 rounded-md bg-white/90 backdrop-blur-sm text-gray-600 hover:text-red-500 shadow-sm"
                         title="Delete"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </div>
                   </div>
 
                   {/* Body */}
-                  <CardContent className="p-4 flex flex-col gap-3 flex-1">
-                    <div>
-                      <a
-                        href={item.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        title={item.title || undefined}
-                        className="text-sm font-semibold text-gray-900 hover:text-[#d4a853] transition-colors break-words"
-                      >
-                        {item.creator ||
-                          creatorFromTitle(item.title) ||
-                          (item.platform && item.platform !== "other"
-                            ? `View on ${item.platform[0].toUpperCase()}${item.platform.slice(1)}`
-                            : "Open reel")}
-                      </a>
-                    </div>
+                  <CardContent className="p-2.5 flex flex-col gap-1.5 flex-1">
+                    <a
+                      href={item.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={item.title || undefined}
+                      className="text-xs font-semibold text-gray-900 hover:text-[#d4a853] transition-colors truncate"
+                    >
+                      {item.creator ||
+                        creatorFromTitle(item.title) ||
+                        (item.platform && item.platform !== "other"
+                          ? `View on ${item.platform[0].toUpperCase()}${item.platform.slice(1)}`
+                          : "Open reel")}
+                    </a>
 
-                    {/* Niches */}
+                    {/* Niches (max 3 shown) */}
                     {item.niche?.length > 0 && (
-                      <div className="flex flex-wrap gap-1">
-                        {item.niche.map((n: string) => {
+                      <div className="flex flex-wrap items-center gap-1">
+                        {item.niche.slice(0, 3).map((n: string) => {
                           const c = nicheColor(n);
                           return (
                             <Badge
                               key={n}
+                              className="px-1.5 py-0 text-[10px] font-medium"
                               style={{
                                 backgroundColor: `${c}15`,
                                 color: c,
@@ -517,28 +515,35 @@ export default function MarketingPage() {
                             </Badge>
                           );
                         })}
+                        {item.niche.length > 3 && (
+                          <span className="text-[10px] text-gray-400">
+                            +{item.niche.length - 3}
+                          </span>
+                        )}
                       </div>
                     )}
 
-                    {/* Notes */}
+                    {/* Notes (compact — full text on hover) */}
                     {item.notes && (
-                      <div className="flex gap-1.5 text-xs text-gray-600 bg-gray-50 rounded-lg p-2.5">
-                        <StickyNote className="h-3.5 w-3.5 flex-shrink-0 mt-0.5 text-gray-400" />
-                        <p className="line-clamp-4 whitespace-pre-wrap">{item.notes}</p>
-                      </div>
+                      <p
+                        title={item.notes}
+                        className="text-[11px] leading-snug text-gray-500 line-clamp-2"
+                      >
+                        {item.notes}
+                      </p>
                     )}
 
                     {/* Footer: model + date */}
-                    <div className="mt-auto pt-1 flex items-center justify-between text-[11px] text-gray-400">
+                    <div className="mt-auto pt-1 flex items-center justify-between gap-1 text-[10px] text-gray-400">
                       {item.model ? (
-                        <span className="inline-flex items-center gap-1 text-gray-600 font-medium">
-                          <UserCircle className="h-3.5 w-3.5" />
-                          {item.model.name}
+                        <span className="inline-flex items-center gap-0.5 text-gray-600 font-medium truncate">
+                          <UserCircle className="h-3 w-3 flex-shrink-0" />
+                          <span className="truncate">{item.model.name}</span>
                         </span>
                       ) : (
                         <span className="text-gray-300">Unassigned</span>
                       )}
-                      <span>{formatDate(item.createdAt)}</span>
+                      <span className="flex-shrink-0">{formatDate(item.createdAt)}</span>
                     </div>
                   </CardContent>
                 </Card>
