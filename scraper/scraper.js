@@ -21,8 +21,7 @@ const path = require("path");
 // CONFIGURATION
 // ============================================
 const CONFIG = {
-  IG_USERNAME: process.env.IG_USERNAME || "pheonyx637",
-  IG_PASSWORD: process.env.IG_PASSWORD || "mB8eXrFQuo",
+  // IG login is loaded via loadIgAccount() from env or a gitignored ig-account.json
   CRM_URL: process.env.CRM_URL || "https://effortless-crm-vn4uw.ondigitalocean.app",
   SCRAPER_SECRET: process.env.SCRAPER_SECRET || "effortless-scraper-2026",
   // Fallback only — used if the CRM account list can't be fetched. Normally the
@@ -62,6 +61,28 @@ function loadProxy() {
       }
     } catch (e) {
       log("warn", `proxy.json present but unreadable: ${e.message}`);
+    }
+  }
+  return null;
+}
+
+// Instagram login for the scraper's "viewer" account. Read from env
+// (IG_USERNAME / IG_PASSWORD) or a gitignored ig-account.json next to this file:
+//   { "username": "...", "password": "..." }
+// Kept out of the repo on purpose — never hard-code real credentials here.
+function loadIgAccount() {
+  if (process.env.IG_USERNAME && process.env.IG_PASSWORD) {
+    return { username: process.env.IG_USERNAME, password: process.env.IG_PASSWORD };
+  }
+  const f = path.join(__dirname, "ig-account.json");
+  if (fs.existsSync(f)) {
+    try {
+      const j = JSON.parse(fs.readFileSync(f, "utf-8"));
+      if (j && j.username && j.password) {
+        return { username: j.username, password: j.password };
+      }
+    } catch (e) {
+      log("warn", `ig-account.json present but unreadable: ${e.message}`);
     }
   }
   return null;
@@ -119,6 +140,13 @@ class InstagramScraper {
     );
     if (isLoggedIn) { log("success", "Already logged in!"); await this.saveSession(); return true; }
 
+    // Not logged in via a saved session — we need credentials from here on.
+    const creds = loadIgAccount();
+    if (!creds) {
+      log("error", "Not logged in and no credentials configured — create ig-account.json (or set IG_USERNAME / IG_PASSWORD).");
+      return false;
+    }
+
     // Check for "Continue as X" flow
     const hasContinue = await this.page.evaluate(() =>
       document.body.innerText.includes("Continue")
@@ -132,7 +160,7 @@ class InstagramScraper {
         // May need password
         const pwField = await this.page.$('input[name="password"], input[type="password"]');
         if (pwField) {
-          await pwField.fill(CONFIG.IG_PASSWORD);
+          await pwField.fill(creds.password);
           await this.page.waitForTimeout(300);
           const submit = await this.page.$('button[type="submit"]');
           if (submit) { await submit.click(); await this.page.waitForTimeout(8000); }
@@ -174,9 +202,9 @@ class InstagramScraper {
     // Fill - try both field name variants
     const emailField = await this.page.$('input[name="email"]') || await this.page.$('input[name="username"]');
     const passField = await this.page.$('input[name="pass"]') || await this.page.$('input[name="password"]');
-    if (emailField) await emailField.fill(CONFIG.IG_USERNAME);
+    if (emailField) await emailField.fill(creds.username);
     await this.page.waitForTimeout(500);
-    if (passField) await passField.fill(CONFIG.IG_PASSWORD);
+    if (passField) await passField.fill(creds.password);
     await this.page.waitForTimeout(500);
     
     // Submit by pressing Enter in the password field  

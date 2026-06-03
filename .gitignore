@@ -41,4 +41,5 @@ do-app-spec.json
 scraper/node_modules/
 scraper/.ig-session.json
 scraper/proxy.json
+scraper/ig-account.json
 scraper/*.log
