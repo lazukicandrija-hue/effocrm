@@ -61,9 +61,12 @@ function nicheColor(n: string): string {
 // ---- Status: a simple 2-state model. The underlying DB enum still has 3 values,
 // but the Marketing tab only shows "In progress" (yellow) and "Done" (green).
 // Anything that isn't DONE counts as In progress (covers any legacy Idea/Recreating).
-const STATUS_META: Record<string, { label: string; color: string }> = {
-  RECREATING: { label: "In progress", color: "#eab308" }, // yellow
-  DONE: { label: "Done", color: "#22c55e" }, // green
+const STATUS_META: Record<
+  string,
+  { label: string; color: string; text: string }
+> = {
+  RECREATING: { label: "In progress", color: "#eab308", text: "#1f2937" }, // yellow pill, dark text
+  DONE: { label: "Done", color: "#16a34a", text: "#ffffff" }, // green pill, white text
 };
 const STATUS_ORDER = ["RECREATING", "DONE"];
 // Collapse any stored status to one of the two we display/store.
@@ -471,7 +474,7 @@ export default function MarketingPage() {
                     <a href={item.url} target="_blank" rel="noopener noreferrer">
                       <ReelThumb src={item.thumbnailUrl} platform={item.platform} />
                     </a>
-                    {/* Status circle — click to flip In progress <-> Done */}
+                    {/* Status pill — colored by status, click to flip In progress <-> Done */}
                     <button
                       type="button"
                       onClick={(e) => {
@@ -480,15 +483,10 @@ export default function MarketingPage() {
                         toggleStatus(item);
                       }}
                       title={`${st.label} — click to mark ${item.status === "DONE" ? "In progress" : "Done"}`}
-                      className="absolute top-2 left-2 inline-flex items-center gap-1.5 pl-1.5 pr-2 py-1 rounded-full bg-white/90 backdrop-blur-sm shadow-sm hover:bg-white transition-colors"
+                      style={{ backgroundColor: st.color, color: st.text }}
+                      className="absolute top-2 left-2 inline-flex items-center px-2 py-1 rounded-full text-[10px] font-semibold leading-none shadow-sm hover:brightness-105 transition"
                     >
-                      <span
-                        className="h-2.5 w-2.5 rounded-full flex-shrink-0"
-                        style={{ backgroundColor: st.color }}
-                      />
-                      <span className="text-[10px] font-semibold text-gray-700 leading-none">
-                        {st.label}
-                      </span>
+                      {st.label}
                     </button>
                     {/* Hover actions */}
                     <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
