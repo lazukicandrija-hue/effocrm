@@ -5,7 +5,9 @@ import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { detectPlatform, fetchLinkPreview } from "@/lib/link-preview";
 
-const STATUSES = ["IDEA", "RECREATING", "DONE"];
+// 2-state model: "In progress" is stored as RECREATING, "Done" as DONE.
+// Legacy rows may still hold IDEA — treated as In progress on read.
+const STATUSES = ["RECREATING", "DONE"];
 
 // GET - list inspirations (with optional filters) + distinct niches in use
 export async function GET(req: NextRequest) {
@@ -31,7 +33,9 @@ export async function GET(req: NextRequest) {
       ];
     }
     if (niche !== "all") where.niche = { has: niche };
-    if (status !== "all" && STATUSES.includes(status)) where.status = status;
+    if (status === "DONE") where.status = "DONE";
+    else if (status === "RECREATING")
+      where.status = { in: ["IDEA", "RECREATING"] }; // "In progress" incl. legacy
     if (modelId !== "all") {
       where.modelId = modelId === "none" ? null : modelId;
     }
@@ -87,7 +91,7 @@ export async function POST(req: NextRequest) {
     const niche: string[] = Array.isArray(body.niche)
       ? body.niche.filter((n: any) => typeof n === "string" && n.trim()).map((n: string) => n.trim())
       : [];
-    const status = STATUSES.includes(body.status) ? body.status : "IDEA";
+    const status = STATUSES.includes(body.status) ? body.status : "RECREATING";
 
     const inspiration = await prisma.inspiration.create({
       data: {

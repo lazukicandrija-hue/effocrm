@@ -58,13 +58,18 @@ function nicheColor(n: string): string {
   return PALETTE[h % PALETTE.length];
 }
 
-// ---- Recreation status ----
+// ---- Status: a simple 2-state model. The underlying DB enum still has 3 values,
+// but the Marketing tab only shows "In progress" (yellow) and "Done" (green).
+// Anything that isn't DONE counts as In progress (covers any legacy Idea/Recreating).
 const STATUS_META: Record<string, { label: string; color: string }> = {
-  IDEA: { label: "Idea", color: "#6b7280" },
-  RECREATING: { label: "Recreating", color: "#3b82f6" },
-  DONE: { label: "Done", color: "#22c55e" },
+  RECREATING: { label: "In progress", color: "#eab308" }, // yellow
+  DONE: { label: "Done", color: "#22c55e" }, // green
 };
-const STATUS_ORDER = ["IDEA", "RECREATING", "DONE"];
+const STATUS_ORDER = ["RECREATING", "DONE"];
+// Collapse any stored status to one of the two we display/store.
+function statusKey(s: string | null | undefined) {
+  return s === "DONE" ? "DONE" : "RECREATING";
+}
 
 const emptyForm = {
   url: "",
@@ -72,7 +77,7 @@ const emptyForm = {
   title: "",
   thumbnailUrl: "",
   niche: [] as string[],
-  status: "IDEA",
+  status: "RECREATING", // = "In progress"
   modelId: "",
   notes: "",
 };
@@ -252,7 +257,7 @@ export default function MarketingPage() {
       title: item.title || "",
       thumbnailUrl: item.thumbnailUrl || "",
       niche: Array.isArray(item.niche) ? item.niche : [],
-      status: item.status || "IDEA",
+      status: statusKey(item.status),
       modelId: item.modelId || "",
       notes: item.notes || "",
     });
@@ -321,6 +326,27 @@ export default function MarketingPage() {
       }
     } catch {
       alert("Failed to delete inspiration");
+    }
+  };
+
+  // Click the status circle to flip In progress <-> Done (no editor needed).
+  const toggleStatus = async (item: any) => {
+    const next = item.status === "DONE" ? "RECREATING" : "DONE";
+    setItems((prev) =>
+      prev.map((i) => (i.id === item.id ? { ...i, status: next } : i))
+    );
+    try {
+      const res = await fetch(`/api/inspirations/${item.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: next }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      setItems((prev) =>
+        prev.map((i) => (i.id === item.id ? { ...i, status: item.status } : i))
+      );
+      alert("Failed to update status — please try again.");
     }
   };
 
@@ -433,7 +459,7 @@ export default function MarketingPage() {
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
             {items.map((item, idx) => {
-              const st = STATUS_META[item.status] || STATUS_META.IDEA;
+              const st = STATUS_META[statusKey(item.status)];
               return (
                 <Card
                   key={item.id}
@@ -445,13 +471,25 @@ export default function MarketingPage() {
                     <a href={item.url} target="_blank" rel="noopener noreferrer">
                       <ReelThumb src={item.thumbnailUrl} platform={item.platform} />
                     </a>
-                    {/* Status pill */}
-                    <span
-                      className="absolute top-2 left-2 px-1.5 py-0.5 rounded-full text-[10px] font-semibold text-white shadow-sm leading-none"
-                      style={{ backgroundColor: st.color }}
+                    {/* Status circle — click to flip In progress <-> Done */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        toggleStatus(item);
+                      }}
+                      title={`${st.label} — click to mark ${item.status === "DONE" ? "In progress" : "Done"}`}
+                      className="absolute top-2 left-2 inline-flex items-center gap-1.5 pl-1.5 pr-2 py-1 rounded-full bg-white/90 backdrop-blur-sm shadow-sm hover:bg-white transition-colors"
                     >
-                      {st.label}
-                    </span>
+                      <span
+                        className="h-2.5 w-2.5 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: st.color }}
+                      />
+                      <span className="text-[10px] font-semibold text-gray-700 leading-none">
+                        {st.label}
+                      </span>
+                    </button>
                     {/* Hover actions */}
                     <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <a

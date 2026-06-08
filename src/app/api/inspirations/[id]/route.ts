@@ -5,7 +5,8 @@ import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { detectPlatform, fetchLinkPreview } from "@/lib/link-preview";
 
-const STATUSES = ["IDEA", "RECREATING", "DONE"];
+// 2-state model: In progress = RECREATING, Done = DONE (legacy IDEA tolerated).
+const STATUSES = ["RECREATING", "DONE"];
 
 // PUT - update an inspiration
 export async function PUT(
