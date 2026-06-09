@@ -28,6 +28,14 @@ export async function GET(req: NextRequest) {
       reelFilter.account = { igUsername: igUsername.toLowerCase() };
     }
 
+    // Filter by when the reel was POSTED (publishedAt) — powers the "last 24h" view.
+    const postedWithin = searchParams.get("postedWithin"); // "24h" | "7d" | null/all
+    if (postedWithin === "24h") {
+      reelFilter.publishedAt = { gte: subHours(new Date(), 24) };
+    } else if (postedWithin === "7d") {
+      reelFilter.publishedAt = { gte: subDays(new Date(), 7) };
+    }
+
     // Get all reels with latest snapshot data
     const reels = await prisma.reel.findMany({
       where: reelFilter,
@@ -55,6 +63,7 @@ export async function GET(req: NextRequest) {
 
       const viewsDelta = current && previous ? current.views - previous.views : 0;
       const likesDelta = current && previous ? current.likes - previous.likes : 0;
+      const commentsDelta = current && previous ? current.comments - previous.comments : 0;
 
       return {
         id: reel.id,
@@ -67,6 +76,7 @@ export async function GET(req: NextRequest) {
         currentComments: reel.currentComments,
         viewsDelta,
         likesDelta,
+        commentsDelta,
         lastScrapedAt: reel.lastScrapedAt,
         account: reel.account,
         reelUrl: `https://www.instagram.com/reel/${reel.shortcode}/`,

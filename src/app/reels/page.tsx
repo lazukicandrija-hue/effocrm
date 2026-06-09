@@ -11,8 +11,9 @@ import {
 import { formatNumber } from "@/lib/utils";
 import {
   Eye, Heart, Film, TrendingUp, TrendingDown, Users,
-  ExternalLink, RefreshCw, Clock,
+  ExternalLink, RefreshCw, Clock, MessageCircle,
 } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -32,12 +33,14 @@ export default function ReelsPage() {
   const [selectedAccount, setSelectedAccount] = useState("all");
   const [sortBy, setSortBy] = useState("currentViews");
   const [days, setDays] = useState("7");
+  const [postedWithin, setPostedWithin] = useState("all"); // all | 24h | 7d (when a reel was posted)
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const reelParams = new URLSearchParams({ sortBy, sortOrder: "desc" });
       if (selectedAccount !== "all") reelParams.set("accountId", selectedAccount);
+      if (postedWithin !== "all") reelParams.set("postedWithin", postedWithin);
 
       const analyticsParams = new URLSearchParams({ days });
       if (selectedAccount !== "all") analyticsParams.set("accountId", selectedAccount);
@@ -57,7 +60,7 @@ export default function ReelsPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedAccount, sortBy, days]);
+  }, [selectedAccount, sortBy, days, postedWithin]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -245,16 +248,47 @@ export default function ReelsPage() {
         {/* Reels Table */}
         <Card className="animate-fade-in">
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base">All Reels</CardTitle>
-              <Select value={sortBy} onValueChange={setSortBy}>
-                <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="currentViews">Most Views</SelectItem>
-                  <SelectItem value="currentLikes">Most Likes</SelectItem>
-                  <SelectItem value="lastScrapedAt">Recently Updated</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+              <div>
+                <CardTitle className="text-base">
+                  {postedWithin === "24h"
+                    ? "Posted in the last 24 hours"
+                    : postedWithin === "7d"
+                    ? "Posted in the last 7 days"
+                    : "All Reels"}
+                </CardTitle>
+                {!loading && (
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {reels.length} reel{reels.length !== 1 ? "s" : ""}
+                    {selectedAccount === "all" ? " across all accounts" : ""}
+                  </p>
+                )}
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-gray-400 hidden sm:inline">Posted:</span>
+                <div className="flex bg-white rounded-lg border border-gray-200 p-1">
+                  {[{ v: "all", l: "All" }, { v: "24h", l: "24h" }, { v: "7d", l: "7d" }].map((p) => (
+                    <button
+                      key={p.v}
+                      onClick={() => setPostedWithin(p.v)}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                        postedWithin === p.v ? "bg-[#0a0a0a] text-[#f5e6c8]" : "text-gray-500 hover:text-gray-700"
+                      }`}
+                    >
+                      {p.l}
+                    </button>
+                  ))}
+                </div>
+                <Select value={sortBy} onValueChange={setSortBy}>
+                  <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="currentViews">Most Views</SelectItem>
+                    <SelectItem value="currentLikes">Most Likes</SelectItem>
+                    <SelectItem value="publishedAt">Recently Posted</SelectItem>
+                    <SelectItem value="lastScrapedAt">Recently Updated</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </CardHeader>
           <CardContent className="p-0">
@@ -262,7 +296,11 @@ export default function ReelsPage() {
               <div className="p-8 text-center text-gray-400">Loading reels...</div>
             ) : reels.length === 0 ? (
               <div className="p-8 text-center text-gray-400">
-                No reels found. Run the scraper to start tracking.
+                {postedWithin === "24h"
+                  ? "No reels posted in the last 24 hours."
+                  : postedWithin === "7d"
+                  ? "No reels posted in the last 7 days."
+                  : "No reels found. Run the scraper to start tracking."}
               </div>
             ) : (
               <div className="divide-y divide-gray-100">
@@ -294,6 +332,11 @@ export default function ReelsPage() {
                           </Badge>
                         )}
                       </div>
+                      {reel.publishedAt && (
+                        <p className="text-[11px] text-gray-500 mt-0.5">
+                          Posted {formatDistanceToNow(new Date(reel.publishedAt), { addSuffix: true })}
+                        </p>
+                      )}
                       {reel.caption && (
                         <p className="text-xs text-gray-400 mt-0.5 truncate max-w-md">{reel.caption}</p>
                       )}
@@ -324,6 +367,19 @@ export default function ReelsPage() {
                         {reel.likesDelta !== 0 && (
                           <span className={`text-[10px] font-medium ${reel.likesDelta > 0 ? "text-emerald-500" : "text-red-500"}`}>
                             {reel.likesDelta > 0 ? "+" : ""}{formatNumber(reel.likesDelta)}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <div className="flex items-center gap-1.5">
+                          <MessageCircle className="h-3.5 w-3.5 text-gray-400" />
+                          <span className="text-sm font-semibold text-gray-900">
+                            {formatNumber(reel.currentComments)}
+                          </span>
+                        </div>
+                        {reel.commentsDelta !== 0 && (
+                          <span className={`text-[10px] font-medium ${reel.commentsDelta > 0 ? "text-emerald-500" : "text-red-500"}`}>
+                            {reel.commentsDelta > 0 ? "+" : ""}{formatNumber(reel.commentsDelta)}
                           </span>
                         )}
                       </div>
