@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
-import { startOfDay, startOfWeek, startOfMonth, subDays, endOfDay } from "date-fns";
+import { startOfDay, startOfWeek, startOfMonth, subDays, subHours, endOfDay } from "date-fns";
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -171,6 +171,46 @@ export async function GET(req: NextRequest) {
       followers: s._sum.followers || 0,
     }));
 
+    // ---- Last 24h (rolling) reel metrics ----
+    // views24h: IG reel views GAINED in the last 24h (from hourly snapshots).
+    // views24hFromNewReels: current views on reels POSTED in the last 24h.
+    const since24h = subHours(now, 24);
+    const reelScope: any =
+      modelId && modelId !== "all" ? { account: { modelId } } : {};
+    const scopedReels = await prisma.reel.findMany({
+      where: reelScope,
+      select: { id: true, currentViews: true, publishedAt: true },
+    });
+    let views24h = 0;
+    if (scopedReels.length) {
+      const reelIds = scopedReels.map((r) => r.id);
+      const snaps = await prisma.reelSnapshot.findMany({
+        where: { reelId: { in: reelIds }, scrapedAt: { gte: subHours(now, 26) } },
+        select: { reelId: true, views: true, scrapedAt: true },
+        orderBy: { scrapedAt: "asc" },
+      });
+      const byReel = new Map<string, any[]>();
+      for (const s of snaps) {
+        const arr = byReel.get(s.reelId) || [];
+        arr.push(s);
+        byReel.set(s.reelId, arr);
+      }
+      for (const r of scopedReels) {
+        const list = byReel.get(r.id);
+        if (!list || !list.length) continue;
+        // baseline = last snapshot at/before 24h ago, else earliest in window
+        let baseline: any = null;
+        for (const s of list) if (s.scrapedAt <= since24h) baseline = s;
+        if (!baseline) baseline = list[0];
+        views24h += Math.max(0, r.currentViews - baseline.views);
+      }
+    }
+    const newReels = scopedReels.filter(
+      (r) => r.publishedAt && new Date(r.publishedAt) >= since24h
+    );
+    const views24hFromNewReels = newReels.reduce((s, r) => s + r.currentViews, 0);
+    const newReels24hCount = newReels.length;
+
     return NextResponse.json({
       totalAccounts,
       activeAccounts,
@@ -186,6 +226,9 @@ export async function GET(req: NextRequest) {
       followersToday,
       followersDelta: followersToday - followersYesterday,
       accountsAddedToday,
+      views24h,
+      views24hFromNewReels,
+      newReels24hCount,
       viewsByNiche,
       viewsOverTime,
       statusDistribution: [

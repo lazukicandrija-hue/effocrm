@@ -22,6 +22,8 @@ import {
   Plus,
   Ban,
   Activity,
+  Clock,
+  Film,
 } from "lucide-react";
 import {
   LineChart,
@@ -53,6 +55,9 @@ interface DashboardStats {
   followersToday: number;
   followersDelta: number;
   accountsAddedToday: number;
+  views24h: number;
+  views24hFromNewReels: number;
+  newReels24hCount: number;
   viewsByNiche: any[];
   viewsOverTime: any[];
   statusDistribution: any[];
@@ -285,6 +290,44 @@ export default function DashboardPage() {
                 delay="animate-delay-600"
               />
             </div>
+
+            {/* Last 24 hours (rolling) */}
+            <Card className="animate-fade-in border-[#d4a853]/40 bg-[#d4a853]/5">
+              <CardContent className="p-4">
+                <div className="flex flex-wrap items-center gap-x-8 gap-y-3">
+                  <div className="flex items-center gap-2.5 mr-2">
+                    <div className="p-2 rounded-lg bg-[#d4a853]/15">
+                      <Clock className="h-4 w-4 text-[#b8860b]" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800 leading-tight">
+                        Last 24 hours
+                      </p>
+                      <p className="text-[11px] text-gray-500">
+                        Rolling — Instagram reel views
+                      </p>
+                    </div>
+                  </div>
+                  {[
+                    { label: "Reel views", value: stats.views24h, icon: Eye, color: "#d4a853" },
+                    { label: "Reels posted", value: stats.newReels24hCount, icon: Film, color: "#a855f7" },
+                    { label: "Views on those", value: stats.views24hFromNewReels, icon: TrendingUp, color: "#22c55e" },
+                  ].map((m) => (
+                    <div key={m.label} className="flex items-center gap-2">
+                      <m.icon className="h-4 w-4 flex-shrink-0" style={{ color: m.color }} />
+                      <div>
+                        <p className="text-lg font-bold text-gray-900 leading-none">
+                          {formatNumber(m.value)}
+                        </p>
+                        <p className="text-[10px] text-gray-400 uppercase tracking-wide mt-0.5">
+                          {m.label}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
 
             {/* Status Balance Bar */}
             <Card className="animate-fade-in">
