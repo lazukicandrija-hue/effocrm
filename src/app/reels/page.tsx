@@ -29,6 +29,7 @@ export default function ReelsPage() {
   const router = useRouter();
   const [reels, setReels] = useState<any[]>([]);
   const [analytics, setAnalytics] = useState<any>(null);
+  const [posted24h, setPosted24h] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [selectedAccount, setSelectedAccount] = useState("all");
   const [sortBy, setSortBy] = useState("currentViews");
@@ -54,6 +55,7 @@ export default function ReelsPage() {
       const analyticsData = await analyticsRes.json();
 
       setReels(reelsData.reels || []);
+      setPosted24h(reelsData.posted24h || null);
       setAnalytics(analyticsData);
     } catch (error) {
       console.error("Failed to fetch reels:", error);
@@ -241,6 +243,41 @@ export default function ReelsPage() {
                   <Line type="monotone" dataKey="totalNew" stroke="#22c55e" strokeWidth={2} dot={false} name="New (daily)" />
                 </LineChart>
               </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Last 24h summary — performance of reels posted today */}
+        {posted24h && (
+          <Card className="animate-fade-in border-[#d4a853]/40 bg-[#d4a853]/5">
+            <CardContent className="p-4">
+              <div className="flex flex-wrap items-center gap-x-8 gap-y-3">
+                <div className="flex items-center gap-2.5 mr-2">
+                  <div className="p-2 rounded-lg bg-[#d4a853]/15">
+                    <Clock className="h-4 w-4 text-[#b8860b]" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-800 leading-tight">Last 24 hours</p>
+                    <p className="text-[11px] text-gray-500">
+                      Reels posted today{selectedAccount === "all" ? " · all accounts" : ""}
+                    </p>
+                  </div>
+                </div>
+                {[
+                  { label: "Posted", value: posted24h.count, icon: Film, color: "#a855f7" },
+                  { label: "Views", value: posted24h.views, icon: Eye, color: "#d4a853" },
+                  { label: "Likes", value: posted24h.likes, icon: Heart, color: "#ef4444" },
+                  { label: "Comments", value: posted24h.comments, icon: MessageCircle, color: "#3b82f6" },
+                ].map((m) => (
+                  <div key={m.label} className="flex items-center gap-2">
+                    <m.icon className="h-4 w-4 flex-shrink-0" style={{ color: m.color }} />
+                    <div>
+                      <p className="text-lg font-bold text-gray-900 leading-none">{formatNumber(m.value)}</p>
+                      <p className="text-[10px] text-gray-400 uppercase tracking-wide mt-0.5">{m.label}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </CardContent>
           </Card>
         )}

@@ -19,16 +19,13 @@ export async function GET(req: NextRequest) {
     const sortBy = searchParams.get("sortBy") || "currentViews";
     const sortOrder = searchParams.get("sortOrder") || "desc";
 
-    // Build reel filter
-    const reelFilter: any = {};
-    if (accountId) {
-      reelFilter.accountId = accountId;
-    }
-    if (igUsername) {
-      reelFilter.account = { igUsername: igUsername.toLowerCase() };
-    }
+    // Account filter (reused for the list and the 24h summary)
+    const accountFilter: any = {};
+    if (accountId) accountFilter.accountId = accountId;
+    if (igUsername) accountFilter.account = { igUsername: igUsername.toLowerCase() };
 
     // Filter by when the reel was POSTED (publishedAt) — powers the "last 24h" view.
+    const reelFilter: any = { ...accountFilter };
     const postedWithin = searchParams.get("postedWithin"); // "24h" | "7d" | null/all
     if (postedWithin === "24h") {
       reelFilter.publishedAt = { gte: subHours(new Date(), 24) };
@@ -88,22 +85,23 @@ export async function GET(req: NextRequest) {
     const totalLikes = reels.reduce((sum, r) => sum + r.currentLikes, 0);
     const totalReels = reels.length;
 
-    // Get views gained today (sum of all deltas from last hour snapshots)
-    const oneHourAgo = subHours(new Date(), 1);
-    const recentSnapshots = await prisma.reelSnapshot.findMany({
-      where: {
-        reel: reelFilter,
-        scrapedAt: { gte: oneHourAgo },
-      },
+    // "Last 24h" summary — aggregate of reels POSTED in the last 24 hours
+    // (independent of the postedWithin filter, but respects the account filter).
+    const recentlyPosted = await prisma.reel.findMany({
+      where: { ...accountFilter, publishedAt: { gte: subHours(new Date(), 24) } },
+      select: { currentViews: true, currentLikes: true, currentComments: true },
     });
+    const posted24h = {
+      count: recentlyPosted.length,
+      views: recentlyPosted.reduce((s, r) => s + r.currentViews, 0),
+      likes: recentlyPosted.reduce((s, r) => s + r.currentLikes, 0),
+      comments: recentlyPosted.reduce((s, r) => s + r.currentComments, 0),
+    };
 
     return NextResponse.json({
       reels: reelsWithDeltas,
-      summary: {
-        totalViews,
-        totalLikes,
-        totalReels,
-      },
+      summary: { totalViews, totalLikes, totalReels },
+      posted24h,
     });
   } catch (error) {
     console.error("Reels API error:", error);
