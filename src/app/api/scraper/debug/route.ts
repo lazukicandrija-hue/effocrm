@@ -1,4 +1,4 @@
-// API: Debug endpoint to check reel data quality
+// API: Debug endpoint to check reel data quality (scraper secret required)
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 
@@ -10,28 +10,53 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const reels = await prisma.reel.findMany({
-    take: 10,
-    orderBy: { currentViews: "desc" },
+  const now = new Date();
+  const h24 = new Date(now.getTime() - 24 * 3600e3);
+  const d7 = new Date(now.getTime() - 7 * 24 * 3600e3);
+
+  const [total, withPublished, posted24h, posted7d] = await Promise.all([
+    prisma.reel.count(),
+    prisma.reel.count({ where: { publishedAt: { not: null } } }),
+    prisma.reel.count({ where: { publishedAt: { gte: h24 } } }),
+    prisma.reel.count({ where: { publishedAt: { gte: d7 } } }),
+  ]);
+
+  // Most recently PUBLISHED reels (what the 24h view keys off of)
+  const recent = await prisma.reel.findMany({
+    where: { publishedAt: { not: null } },
+    orderBy: { publishedAt: "desc" },
+    take: 8,
     select: {
       shortcode: true,
+      publishedAt: true,
+      lastScrapedAt: true,
       currentViews: true,
-      currentLikes: true,
-      thumbnailUrl: true,
       account: { select: { igUsername: true } },
     },
   });
 
+  // Freshest scrape time across all reels
+  const freshest = await prisma.reel.findFirst({
+    orderBy: { lastScrapedAt: "desc" },
+    select: { lastScrapedAt: true },
+  });
+
   return NextResponse.json({
-    count: await prisma.reel.count(),
-    sample: reels.map(r => ({
-      shortcode: r.shortcode,
-      reelUrl: `https://www.instagram.com/reel/${r.shortcode}/`,
-      views: r.currentViews,
-      likes: r.currentLikes,
-      hasThumb: !!r.thumbnailUrl,
-      thumbStart: r.thumbnailUrl?.substring(0, 80) || null,
+    now: now.toISOString(),
+    totals: {
+      reels: total,
+      withPublishedAt: withPublished,
+      missingPublishedAt: total - withPublished,
+      postedLast24h: posted24h,
+      postedLast7d: posted7d,
+    },
+    lastReelScrapeAt: freshest?.lastScrapedAt || null,
+    mostRecentlyPublished: recent.map((r) => ({
       account: r.account?.igUsername,
+      shortcode: r.shortcode,
+      publishedAt: r.publishedAt,
+      lastScrapedAt: r.lastScrapedAt,
+      views: r.currentViews,
     })),
   });
 }
