@@ -54,37 +54,51 @@ export async function GET(req: NextRequest) {
       prisma.account.count({ where }),
     ]);
 
-    // Get total views for each account
-    const accountsWithViews = await Promise.all(
-      accounts.map(async (account) => {
-        const totalViews = await prisma.dailyStat.aggregate({
-          where: { accountId: account.id },
-          _sum: { instaViews: true, fbViews: true },
-        });
+    // Aggregate views per account in TWO queries (not N+1) — avoids firing dozens
+    // of concurrent queries that can exhaust the DB connection pool.
+    const accountIds = accounts.map((a) => a.id);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
-        // Get today's views
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const todayViews = await prisma.dailyStat.findFirst({
-          where: {
-            accountId: account.id,
-            date: { gte: today },
-          },
-        });
+    const [totalsAgg, todayAgg] = await Promise.all([
+      prisma.dailyStat.groupBy({
+        by: ["accountId"],
+        where: { accountId: { in: accountIds } },
+        _sum: { instaViews: true, fbViews: true },
+      }),
+      prisma.dailyStat.groupBy({
+        by: ["accountId"],
+        where: { accountId: { in: accountIds }, date: { gte: today } },
+        _sum: { instaViews: true, fbViews: true },
+      }),
+    ]);
 
-        return {
-          ...account,
-          totalInstaViews: totalViews._sum.instaViews || 0,
-          totalFbViews: totalViews._sum.fbViews || 0,
-          totalViews: (totalViews._sum.instaViews || 0) + (totalViews._sum.fbViews || 0),
-          viewsToday: todayViews
-            ? todayViews.instaViews + todayViews.fbViews
-            : 0,
-          instaViewsToday: todayViews?.instaViews || 0,
-          fbViewsToday: todayViews?.fbViews || 0,
-        };
-      })
+    const totalsMap = new Map(
+      totalsAgg.map((t) => [
+        t.accountId,
+        { insta: t._sum.instaViews || 0, fb: t._sum.fbViews || 0 },
+      ])
     );
+    const todayMap = new Map(
+      todayAgg.map((t) => [
+        t.accountId,
+        { insta: t._sum.instaViews || 0, fb: t._sum.fbViews || 0 },
+      ])
+    );
+
+    const accountsWithViews = accounts.map((account) => {
+      const tot = totalsMap.get(account.id) || { insta: 0, fb: 0 };
+      const tod = todayMap.get(account.id) || { insta: 0, fb: 0 };
+      return {
+        ...account,
+        totalInstaViews: tot.insta,
+        totalFbViews: tot.fb,
+        totalViews: tot.insta + tot.fb,
+        viewsToday: tod.insta + tod.fb,
+        instaViewsToday: tod.insta,
+        fbViewsToday: tod.fb,
+      };
+    });
 
     return NextResponse.json({
       accounts: accountsWithViews,
@@ -94,7 +108,13 @@ export async function GET(req: NextRequest) {
     });
   } catch (error) {
     console.error("Accounts fetch error:", error);
-    return NextResponse.json({ error: "Failed to fetch accounts" }, { status: 500 });
+    return NextResponse.json(
+      {
+        error: "Failed to fetch accounts",
+        detail: error instanceof Error ? error.message : String(error),
+      },
+      { status: 500 }
+    );
   }
 }
 
