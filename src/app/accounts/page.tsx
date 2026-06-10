@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -128,6 +129,109 @@ function DateCell({
         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
       />
     </div>
+  );
+}
+
+// Click a Status/Decision badge to open a small dropdown and pick a value inline.
+// The menu is portaled to <body> so it's never clipped by the scrolling table.
+function InlineEnumCell({
+  value,
+  options,
+  variantOf,
+  placeholder = "—",
+  onSelect,
+}: {
+  value: string | null;
+  options: { value: string | null; label: string }[];
+  variantOf: (v: string) => any;
+  placeholder?: string;
+  onSelect: (v: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (
+        btnRef.current &&
+        !btnRef.current.contains(e.target as Node) &&
+        menuRef.current &&
+        !menuRef.current.contains(e.target as Node)
+      )
+        setOpen(false);
+    };
+    const close = () => setOpen(false);
+    document.addEventListener("mousedown", onDown);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [open]);
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        title="Click to change"
+        onClick={(e) => {
+          e.stopPropagation();
+          if (!open && btnRef.current) {
+            const r = btnRef.current.getBoundingClientRect();
+            setPos({ top: r.bottom + 4, left: r.left });
+          }
+          setOpen((o) => !o);
+        }}
+        className="cursor-pointer rounded-md hover:opacity-80 transition-opacity"
+      >
+        {value ? (
+          <Badge variant={variantOf(value)}>{value}</Badge>
+        ) : (
+          <span className="text-gray-300 hover:text-gray-500">{placeholder}</span>
+        )}
+      </button>
+      {open &&
+        pos &&
+        createPortal(
+          <div
+            ref={menuRef}
+            style={{ position: "fixed", top: pos.top, left: pos.left, zIndex: 50 }}
+            className="bg-white rounded-lg shadow-lg border border-gray-200 p-1 min-w-[130px]"
+          >
+            {options.map((opt) => (
+              <button
+                key={opt.value ?? "__none"}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setOpen(false);
+                  if (opt.value !== value) onSelect(opt.value);
+                }}
+                className={
+                  "flex items-center gap-2 w-full px-2 py-1.5 rounded-md hover:bg-gray-50 transition-colors " +
+                  (opt.value === value ? "bg-gray-50" : "")
+                }
+              >
+                {opt.value ? (
+                  <Badge variant={variantOf(opt.value)}>{opt.label}</Badge>
+                ) : (
+                  <span className="text-xs text-gray-400">{opt.label}</span>
+                )}
+                {opt.value === value && (
+                  <Check className="h-3.5 w-3.5 text-gray-400 ml-auto" />
+                )}
+              </button>
+            ))}
+          </div>,
+          document.body
+        )}
+    </>
   );
 }
 
@@ -443,6 +547,31 @@ export default function AccountsPage() {
     }
   };
 
+  // Inline enum picker for status / decision (value may be null to clear).
+  const setAccountField = async (
+    account: any,
+    field: "status" | "decision",
+    value: string | null
+  ) => {
+    const prevVal = account[field];
+    setAccounts((prev) =>
+      prev.map((a) => (a.id === account.id ? { ...a, [field]: value } : a))
+    );
+    try {
+      const res = await fetch(`/api/accounts/${account.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [field]: value }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      setAccounts((prev) =>
+        prev.map((a) => (a.id === account.id ? { ...a, [field]: prevVal } : a))
+      );
+      alert("Failed to update — please try again.");
+    }
+  };
+
   const SortableHead = ({ label, field }: { label: string; field: string }) => (
     <TableHead
       className="cursor-pointer select-none hover:text-gray-700 transition-colors"
@@ -658,18 +787,30 @@ export default function AccountsPage() {
                         <NicheBadges niches={account.niche} />
                       </TableCell>
                       <TableCell>
-                        {account.decision ? (
-                          <Badge variant={DECISION_VARIANTS[account.decision]}>
-                            {account.decision}
-                          </Badge>
-                        ) : (
-                          <span className="text-gray-300">—</span>
-                        )}
+                        <InlineEnumCell
+                          value={account.decision}
+                          variantOf={(v) => DECISION_VARIANTS[v]}
+                          options={[
+                            { value: "KEEP", label: "KEEP" },
+                            { value: "TESTING", label: "TESTING" },
+                            { value: "REMOVE", label: "REMOVE" },
+                            { value: null, label: "Clear" },
+                          ]}
+                          onSelect={(v) => setAccountField(account, "decision", v)}
+                        />
                       </TableCell>
                       <TableCell>
-                        <Badge variant={STATUS_VARIANTS[account.status]}>
-                          {account.status}
-                        </Badge>
+                        <InlineEnumCell
+                          value={account.status}
+                          variantOf={(v) => STATUS_VARIANTS[v]}
+                          options={[
+                            { value: "ACTIVE", label: "ACTIVE" },
+                            { value: "WARNING", label: "WARNING" },
+                            { value: "PAUSED", label: "PAUSED" },
+                            { value: "BANNED", label: "BANNED" },
+                          ]}
+                          onSelect={(v) => setAccountField(account, "status", v)}
+                        />
                       </TableCell>
                       <TableCell className="font-medium whitespace-nowrap">
                         {formatExact(account.followers)}
