@@ -45,6 +45,7 @@ export async function PUT(
     }
     if (STATUSES.includes(body.status)) data.status = body.status;
     if (body.modelId !== undefined) data.modelId = body.modelId || null;
+    if (body.folderId !== undefined) data.folderId = body.folderId || null;
 
     // If the link changed and there's still no thumbnail, try to fetch one
     const urlChanged = data.url && data.url !== existing.url;

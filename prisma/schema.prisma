@@ -133,12 +133,32 @@ model Inspiration {
   status       InspirationStatus @default(IDEA)  // recreation progress
   modelId      String?           // optional: which of our models this is for
   model        Model?            @relation(fields: [modelId], references: [id], onDelete: SetNull)
+  folderId     String?           // optional: which folder (day / account) this reel is filed under
+  folder       Folder?           @relation(fields: [folderId], references: [id], onDelete: SetNull)
   position     Int               @default(0)  // manual sort order (lower = first)
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
 
   @@index([modelId])
   @@index([status])
+  @@index([position])
+  @@index([folderId])
+}
+
+// A folder in the marketing board. Folders can be nested (parent -> children) so you
+// can have e.g. a "Jun 9" folder with "Main account" / "2nd main" subfolders inside.
+model Folder {
+  id           String        @id @default(cuid())
+  name         String
+  parentId     String?
+  parent       Folder?       @relation("FolderTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children     Folder[]      @relation("FolderTree")
+  inspirations Inspiration[]
+  position     Int           @default(0)  // manual sort order among siblings
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([parentId])
   @@index([position])
 }
 

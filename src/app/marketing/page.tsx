@@ -35,6 +35,11 @@ import {
   RefreshCw,
   X,
   UserCircle,
+  Folder as FolderIcon,
+  FolderPlus,
+  FolderInput,
+  ChevronRight,
+  Home,
 } from "lucide-react";
 
 // ---- Niches (reuse Accounts niches + any custom ones already saved) ----
@@ -56,6 +61,19 @@ function nicheColor(n: string): string {
   let h = 0;
   for (let i = 0; i < n.length; i++) h = (h * 31 + n.charCodeAt(i)) >>> 0;
   return PALETTE[h % PALETTE.length];
+}
+
+// "Jun 9 / Main account" — the full path of a folder, for unambiguous folder pickers.
+function folderPathLabel(f: any, all: any[]): string {
+  const parts: string[] = [];
+  const seen = new Set<string>();
+  let c: any = f;
+  while (c && !seen.has(c.id)) {
+    seen.add(c.id);
+    parts.unshift(c.name);
+    c = all.find((x) => x.id === c.parentId) || null;
+  }
+  return parts.join(" / ");
 }
 
 // ---- Status: a simple 2-state model. The underlying DB enum still has 3 values,
@@ -83,6 +101,7 @@ const emptyForm = {
   status: "RECREATING", // = "In progress"
   modelId: "",
   notes: "",
+  folderId: "",
 };
 
 function isHttpUrl(v: string) {
@@ -161,6 +180,15 @@ export default function MarketingPage() {
   const [addingNiche, setAddingNiche] = useState(false);
   const [customNiche, setCustomNiche] = useState("");
 
+  // Folders
+  const [folders, setFolders] = useState<any[]>([]);
+  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
+  const [showFolderModal, setShowFolderModal] = useState(false);
+  const [folderEditing, setFolderEditing] = useState<any>(null);
+  const [folderName, setFolderName] = useState("");
+  const [folderDeleteConfirm, setFolderDeleteConfirm] = useState<any>(null);
+  const [moveTarget, setMoveTarget] = useState<any>(null); // reel being moved to a folder
+
   const fetchItems = useCallback(async () => {
     setLoading(true);
     try {
@@ -169,6 +197,8 @@ export default function MarketingPage() {
         niche: filterNiche,
         status: filterStatus,
         modelId: filterModel,
+        // While searching, look across every folder; otherwise show the current folder.
+        folderId: search.trim() ? "all" : currentFolderId || "root",
       });
       const res = await fetch(`/api/inspirations?${params}`);
       const data = await res.json();
@@ -183,7 +213,7 @@ export default function MarketingPage() {
     } finally {
       setLoading(false);
     }
-  }, [search, filterNiche, filterStatus, filterModel]);
+  }, [search, filterNiche, filterStatus, filterModel, currentFolderId]);
 
   const fetchModels = useCallback(async () => {
     try {
@@ -195,9 +225,20 @@ export default function MarketingPage() {
     }
   }, []);
 
+  const fetchFolders = useCallback(async () => {
+    try {
+      const res = await fetch("/api/folders");
+      const data = await res.json();
+      setFolders(Array.isArray(data.folders) ? data.folders : []);
+    } catch (error) {
+      console.error("Failed to fetch folders:", error);
+    }
+  }, []);
+
   useEffect(() => {
     fetchModels();
-  }, [fetchModels]);
+    fetchFolders();
+  }, [fetchModels, fetchFolders]);
 
   useEffect(() => {
     const debounce = setTimeout(() => fetchItems(), 300);
@@ -244,8 +285,9 @@ export default function MarketingPage() {
 
   const openAddModal = () => {
     setEditing(null);
-    // Default to the first model (Poppy) so every new idea is pre-assigned
-    setFormData({ ...emptyForm, modelId: models[0]?.id || "" });
+    // Default to the first model (Poppy) so every new idea is pre-assigned, and
+    // drop the new reel into whatever folder you're currently viewing.
+    setFormData({ ...emptyForm, modelId: models[0]?.id || "", folderId: currentFolderId || "" });
     lastPreviewedUrl.current = "";
     setAddingNiche(false);
     setCustomNiche("");
@@ -263,6 +305,7 @@ export default function MarketingPage() {
       status: statusKey(item.status),
       modelId: item.modelId || "",
       notes: item.notes || "",
+      folderId: item.folderId || "",
     });
     lastPreviewedUrl.current = item.url || "";
     setAddingNiche(false);
@@ -300,7 +343,11 @@ export default function MarketingPage() {
     try {
       const url = editing ? `/api/inspirations/${editing.id}` : "/api/inspirations";
       const method = editing ? "PUT" : "POST";
-      const payload = { ...formData, modelId: formData.modelId || null };
+      const payload = {
+        ...formData,
+        modelId: formData.modelId || null,
+        folderId: formData.folderId || null,
+      };
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
@@ -350,6 +397,88 @@ export default function MarketingPage() {
         prev.map((i) => (i.id === item.id ? { ...i, status: item.status } : i))
       );
       alert("Failed to update status — please try again.");
+    }
+  };
+
+  // ---- Folder navigation + actions ----
+  const childFolders = folders
+    .filter((f) => (f.parentId || null) === currentFolderId)
+    .sort((a, b) => a.position - b.position || a.name.localeCompare(b.name));
+  const currentFolder = folders.find((f) => f.id === currentFolderId) || null;
+  const breadcrumb: any[] = [];
+  {
+    let c: any = currentFolder;
+    const seen = new Set<string>();
+    while (c && !seen.has(c.id)) {
+      seen.add(c.id);
+      breadcrumb.unshift(c);
+      c = folders.find((f) => f.id === c.parentId) || null;
+    }
+  }
+
+  const openAddFolder = () => {
+    setFolderEditing(null);
+    setFolderName("");
+    setShowFolderModal(true);
+  };
+  const openRenameFolder = (f: any) => {
+    setFolderEditing(f);
+    setFolderName(f.name);
+    setShowFolderModal(true);
+  };
+  const saveFolder = async () => {
+    const name = folderName.trim();
+    if (!name) return;
+    try {
+      const res = folderEditing
+        ? await fetch(`/api/folders/${folderEditing.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name }),
+          })
+        : await fetch("/api/folders", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name, parentId: currentFolderId }),
+          });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || "Failed to save folder");
+        return;
+      }
+      setShowFolderModal(false);
+      fetchFolders();
+    } catch {
+      alert("Failed to save folder");
+    }
+  };
+  const handleDeleteFolder = async (f: any) => {
+    try {
+      const res = await fetch(`/api/folders/${f.id}`, { method: "DELETE" });
+      if (res.ok) {
+        setFolderDeleteConfirm(null);
+        if (currentFolderId === f.id) setCurrentFolderId(f.parentId || null);
+        fetchFolders();
+        fetchItems();
+      }
+    } catch {
+      alert("Failed to delete folder");
+    }
+  };
+  const moveInspiration = async (inspirationId: string, folderId: string | null) => {
+    try {
+      const res = await fetch(`/api/inspirations/${inspirationId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ folderId: folderId || null }),
+      });
+      if (res.ok) {
+        setMoveTarget(null);
+        fetchItems();
+        fetchFolders();
+      }
+    } catch {
+      alert("Failed to move reel");
     }
   };
 
@@ -430,6 +559,89 @@ export default function MarketingPage() {
           </CardContent>
         </Card>
 
+        {/* Folder navigation (hidden while searching, which shows results across all folders) */}
+        {!search.trim() && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-0.5 text-sm text-gray-600 flex-wrap">
+                <button
+                  onClick={() => setCurrentFolderId(null)}
+                  className={
+                    "inline-flex items-center gap-1 px-2 py-1 rounded-md hover:bg-gray-100 " +
+                    (currentFolderId === null ? "font-semibold text-gray-900" : "font-medium")
+                  }
+                >
+                  <Home className="h-3.5 w-3.5" /> All
+                </button>
+                {breadcrumb.map((f) => (
+                  <span key={f.id} className="inline-flex items-center gap-0.5">
+                    <ChevronRight className="h-3.5 w-3.5 text-gray-300" />
+                    <button
+                      onClick={() => setCurrentFolderId(f.id)}
+                      className={
+                        "px-2 py-1 rounded-md hover:bg-gray-100 " +
+                        (f.id === currentFolderId ? "font-semibold text-gray-900" : "")
+                      }
+                    >
+                      {f.name}
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <Button variant="outline" size="sm" onClick={openAddFolder} className="gap-2">
+                <FolderPlus className="h-4 w-4" />
+                New folder
+              </Button>
+            </div>
+
+            {childFolders.length > 0 && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3">
+                {childFolders.map((f) => (
+                  <div
+                    key={f.id}
+                    onClick={() => setCurrentFolderId(f.id)}
+                    className="group relative flex items-center gap-2 p-3 rounded-lg border border-gray-200 bg-white hover:border-[#d4a853] hover:shadow-sm cursor-pointer transition"
+                  >
+                    <FolderIcon className="h-5 w-5 text-[#d4a853] flex-shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-gray-900 truncate">{f.name}</p>
+                      <p className="text-[11px] text-gray-400">
+                        {f._count?.children
+                          ? `${f._count.children} folder${f._count.children > 1 ? "s" : ""} · `
+                          : ""}
+                        {f._count?.inspirations || 0} reel
+                        {(f._count?.inspirations || 0) === 1 ? "" : "s"}
+                      </p>
+                    </div>
+                    <div className="absolute top-1 right-1 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openRenameFolder(f);
+                        }}
+                        className="p-1 rounded bg-white/90 text-gray-500 hover:text-gray-900 shadow-sm"
+                        title="Rename"
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setFolderDeleteConfirm(f);
+                        }}
+                        className="p-1 rounded bg-white/90 text-gray-500 hover:text-red-500 shadow-sm"
+                        title="Delete"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Board */}
         {loading ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
@@ -505,6 +717,13 @@ export default function MarketingPage() {
                         title="Edit"
                       >
                         <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => setMoveTarget(item)}
+                        className="p-1 rounded-md bg-white/90 backdrop-blur-sm text-gray-600 hover:text-[#d4a853] shadow-sm"
+                        title="Move to folder"
+                      >
+                        <FolderInput className="h-3.5 w-3.5" />
                       </button>
                       <button
                         onClick={() => setDeleteConfirm(item.id)}
@@ -699,6 +918,28 @@ export default function MarketingPage() {
                   </SelectContent>
                 </Select>
               </div>
+
+              <div className="space-y-2">
+                <Label>Folder</Label>
+                <Select
+                  value={formData.folderId || "none"}
+                  onValueChange={(v) =>
+                    setFormData({ ...formData, folderId: v === "none" ? "" : v })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="No folder" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No folder (unfiled)</SelectItem>
+                    {folders.map((f: any) => (
+                      <SelectItem key={f.id} value={f.id}>
+                        {folderPathLabel(f, folders)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
 
@@ -828,6 +1069,104 @@ export default function MarketingPage() {
             >
               Delete
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create / rename folder */}
+      <Dialog open={showFolderModal} onOpenChange={setShowFolderModal}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>{folderEditing ? "Rename folder" : "New folder"}</DialogTitle>
+            <DialogDescription>
+              {folderEditing
+                ? "Give this folder a new name."
+                : currentFolder
+                ? `This folder will be created inside "${currentFolder.name}".`
+                : "This folder will be created at the top level."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 mt-2">
+            <Label>Folder name</Label>
+            <Input
+              autoFocus
+              value={folderName}
+              onChange={(e) => setFolderName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  saveFolder();
+                }
+              }}
+              placeholder='e.g. "Jun 9" or "Main account"'
+            />
+          </div>
+          <div className="flex justify-end gap-3 pt-5">
+            <Button variant="outline" onClick={() => setShowFolderModal(false)}>
+              Cancel
+            </Button>
+            <Button onClick={saveFolder} disabled={!folderName.trim()}>
+              {folderEditing ? "Rename" : "Create"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete folder confirmation */}
+      <Dialog open={!!folderDeleteConfirm} onOpenChange={() => setFolderDeleteConfirm(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete folder</DialogTitle>
+            <DialogDescription>
+              Delete the folder &quot;{folderDeleteConfirm?.name}&quot;? The reels inside
+              won&apos;t be deleted — they&apos;ll move to{" "}
+              <span className="font-medium">All</span> (unfiled). Any subfolders are removed.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-3 mt-4">
+            <Button variant="outline" onClick={() => setFolderDeleteConfirm(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => folderDeleteConfirm && handleDeleteFolder(folderDeleteConfirm)}
+            >
+              Delete folder
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Move a reel into a folder */}
+      <Dialog open={!!moveTarget} onOpenChange={() => setMoveTarget(null)}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>Move to folder</DialogTitle>
+            <DialogDescription>Choose where to file this reel.</DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[320px] overflow-y-auto -mx-1 px-1 mt-2 space-y-1">
+            <button
+              onClick={() => moveTarget && moveInspiration(moveTarget.id, null)}
+              className={
+                "w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm hover:bg-gray-100 " +
+                (!moveTarget?.folderId ? "bg-gray-100 font-medium" : "")
+              }
+            >
+              <Home className="h-4 w-4 text-gray-400" /> All (unfiled)
+            </button>
+            {folders.map((f: any) => (
+              <button
+                key={f.id}
+                onClick={() => moveTarget && moveInspiration(moveTarget.id, f.id)}
+                className={
+                  "w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left hover:bg-gray-100 " +
+                  (moveTarget?.folderId === f.id ? "bg-gray-100 font-medium" : "")
+                }
+              >
+                <FolderIcon className="h-4 w-4 text-[#d4a853] flex-shrink-0" />
+                <span className="truncate">{folderPathLabel(f, folders)}</span>
+              </button>
+            ))}
           </div>
         </DialogContent>
       </Dialog>

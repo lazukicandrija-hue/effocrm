@@ -22,6 +22,7 @@ export async function GET(req: NextRequest) {
     const niche = sp.get("niche") || "all";
     const status = sp.get("status") || "all";
     const modelId = sp.get("modelId") || "all";
+    const folderId = sp.get("folderId"); // "all"/absent = no filter, "root" = unfiled, else a folder id
 
     const where: any = {};
     if (search) {
@@ -38,6 +39,9 @@ export async function GET(req: NextRequest) {
       where.status = { in: ["IDEA", "RECREATING"] }; // "In progress" incl. legacy
     if (modelId !== "all") {
       where.modelId = modelId === "none" ? null : modelId;
+    }
+    if (folderId && folderId !== "all") {
+      where.folderId = folderId === "root" || folderId === "none" ? null : folderId;
     }
 
     const inspirations = await prisma.inspiration.findMany({
@@ -104,6 +108,7 @@ export async function POST(req: NextRequest) {
         notes: body.notes?.trim() || null,
         status,
         modelId: body.modelId || null,
+        folderId: body.folderId || null,
       },
       include: { model: { select: { id: true, name: true } } },
     });
