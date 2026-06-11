@@ -211,6 +211,12 @@ export async function GET(req: NextRequest) {
     const views24hFromNewReels = newReels.reduce((s, r) => s + r.currentViews, 0);
     const newReels24hCount = newReels.length;
 
+    // Most recent scrape time across the in-scope accounts (so a "Refresh now"
+    // button can detect when fresh data has landed).
+    const lastSyncedAtMs = accounts
+      .map((a) => (a.lastSyncedAt ? new Date(a.lastSyncedAt).getTime() : 0))
+      .reduce((mx, t) => Math.max(mx, t), 0);
+
     return NextResponse.json({
       totalAccounts,
       activeAccounts,
@@ -229,6 +235,7 @@ export async function GET(req: NextRequest) {
       views24h,
       views24hFromNewReels,
       newReels24hCount,
+      lastSyncedAt: lastSyncedAtMs ? new Date(lastSyncedAtMs).toISOString() : null,
       viewsByNiche,
       viewsOverTime,
       statusDistribution: [

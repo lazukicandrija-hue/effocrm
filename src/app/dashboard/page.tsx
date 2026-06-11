@@ -24,6 +24,7 @@ import {
   Activity,
   Clock,
   Film,
+  RefreshCw,
 } from "lucide-react";
 import {
   LineChart,
@@ -58,6 +59,7 @@ interface DashboardStats {
   views24h: number;
   views24hFromNewReels: number;
   newReels24hCount: number;
+  lastSyncedAt: string | null;
   viewsByNiche: any[];
   viewsOverTime: any[];
   statusDistribution: any[];
@@ -87,6 +89,7 @@ export default function DashboardPage() {
   const [period, setPeriod] = useState("today");
   const [modelId, setModelId] = useState("all");
   const [models, setModels] = useState<any[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
 
   const fetchStats = useCallback(async () => {
     try {
@@ -100,6 +103,46 @@ export default function DashboardPage() {
       setLoading(false);
     }
   }, [period, modelId]);
+
+  // "Refresh now": ask the VPS scraper for an immediate run, then poll until the
+  // fresh data lands (lastSyncedAt advances) and update the numbers in place.
+  const handleRefreshNow = async () => {
+    if (refreshing) return;
+    const baseline = stats?.lastSyncedAt
+      ? new Date(stats.lastSyncedAt).getTime()
+      : 0;
+    setRefreshing(true);
+    try {
+      const res = await fetch("/api/scraper/request-refresh", { method: "POST" });
+      if (!res.ok) throw new Error();
+    } catch {
+      alert("Couldn't queue a refresh — please try again.");
+      setRefreshing(false);
+      return;
+    }
+    const start = Date.now();
+    const poll = async () => {
+      if (Date.now() - start > 7 * 60 * 1000) {
+        setRefreshing(false); // timed out — the scrape may still land shortly
+        return;
+      }
+      try {
+        const params = new URLSearchParams({ period, modelId });
+        const r = await fetch(`/api/stats?${params}`);
+        const d = await r.json();
+        setStats(d);
+        const ls = d.lastSyncedAt ? new Date(d.lastSyncedAt).getTime() : 0;
+        if (ls > baseline) {
+          setRefreshing(false);
+          return;
+        }
+      } catch {
+        /* keep polling */
+      }
+      setTimeout(poll, 25000);
+    };
+    setTimeout(poll, 25000);
+  };
 
   const fetchModels = useCallback(async () => {
     try {
@@ -218,6 +261,21 @@ export default function DashboardPage() {
                 ))}
               </SelectContent>
             </Select>
+
+            {/* Refresh now — triggers a scrape on the VPS */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefreshNow}
+              disabled={refreshing}
+              className="gap-2 h-9 bg-white"
+              title="Trigger an immediate scrape on the VPS — numbers update in ~3–4 min"
+            >
+              <RefreshCw
+                className={"h-4 w-4 " + (refreshing ? "animate-spin" : "")}
+              />
+              {refreshing ? "Refreshing…" : "Refresh now"}
+            </Button>
           </div>
         </div>
 
