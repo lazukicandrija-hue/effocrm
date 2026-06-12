@@ -19,6 +19,7 @@ import {
   Film,
   Lightbulb,
   TrendingUp,
+  Sparkles,
 } from "lucide-react";
 
 const navigation = [
@@ -26,6 +27,7 @@ const navigation = [
   { name: "Accounts", href: "/accounts", icon: Camera },
   { name: "Reels Analytics", href: "/reels", icon: Film },
   { name: "What's Working", href: "/whats-working", icon: TrendingUp },
+  { name: "Ideas", href: "/ideas", icon: Sparkles },
   { name: "Marketing", href: "/marketing", icon: Lightbulb },
   { name: "Add Views", href: "/add-views", icon: PlusCircle },
   { name: "Models", href: "/models", icon: UserCircle },
