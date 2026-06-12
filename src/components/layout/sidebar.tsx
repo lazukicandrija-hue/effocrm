@@ -18,12 +18,14 @@ import {
   UsersRound,
   Film,
   Lightbulb,
+  TrendingUp,
 } from "lucide-react";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Accounts", href: "/accounts", icon: Camera },
   { name: "Reels Analytics", href: "/reels", icon: Film },
+  { name: "What's Working", href: "/whats-working", icon: TrendingUp },
   { name: "Marketing", href: "/marketing", icon: Lightbulb },
   { name: "Add Views", href: "/add-views", icon: PlusCircle },
   { name: "Models", href: "/models", icon: UserCircle },
