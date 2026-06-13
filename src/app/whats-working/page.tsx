@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 
 type Reel = {
   id: string;
@@ -28,6 +30,7 @@ function fmt(n: number): string {
 }
 
 export default function WhatsWorkingPage() {
+  const router = useRouter();
   const [reels, setReels] = useState<Reel[]>([]);
   const [loading, setLoading] = useState(true);
   const [note, setNote] = useState<string | null>(null);
@@ -80,6 +83,12 @@ export default function WhatsWorkingPage() {
 
   return (
     <div className="p-8 max-w-5xl mx-auto">
+      <button
+        onClick={() => router.back()}
+        className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-[#f5e6c8] mb-4 transition-colors"
+      >
+        <ArrowLeft className="h-4 w-4" /> Back
+      </button>
       <div className="mb-6">
         <h1 className="text-2xl font-semibold" style={{ color: "#f5e6c8" }}>
           What&apos;s Working

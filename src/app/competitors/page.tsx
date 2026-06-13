@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 
 type Comp = {
   id: string;
@@ -12,6 +14,7 @@ type Comp = {
 };
 
 export default function CompetitorsPage() {
+  const router = useRouter();
   const [list, setList] = useState<Comp[]>([]);
   const [handle, setHandle] = useState("");
   const [loading, setLoading] = useState(true);
@@ -60,6 +63,12 @@ export default function CompetitorsPage() {
 
   return (
     <div className="p-8 max-w-3xl mx-auto">
+      <button
+        onClick={() => router.back()}
+        className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-[#f5e6c8] mb-4 transition-colors"
+      >
+        <ArrowLeft className="h-4 w-4" /> Back
+      </button>
       <h1 className="text-2xl font-semibold" style={{ color: "#f5e6c8" }}>
         Competitors
       </h1>

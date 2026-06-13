@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 
 type Idea = {
   id: string;
@@ -20,6 +22,7 @@ type Idea = {
 };
 
 export default function IdeasPage() {
+  const router = useRouter();
   const [ideas, setIdeas] = useState<Idea[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"AI" | "MANUAL">("AI");
@@ -116,6 +119,12 @@ export default function IdeasPage() {
 
   return (
     <div className="p-8 max-w-4xl mx-auto">
+      <button
+        onClick={() => router.back()}
+        className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-[#f5e6c8] mb-4 transition-colors"
+      >
+        <ArrowLeft className="h-4 w-4" /> Back
+      </button>
       <div className="flex items-start justify-between mb-6">
         <div>
           <h1 className="text-2xl font-semibold" style={{ color: "#f5e6c8" }}>
