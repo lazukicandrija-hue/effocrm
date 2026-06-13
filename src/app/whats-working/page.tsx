@@ -144,16 +144,12 @@ export default function WhatsWorkingPage() {
                   <span className="text-lg font-semibold text-gray-600 w-6 text-center flex-shrink-0">
                     {i + 1}
                   </span>
-                  {r.thumbnailUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={`/api/img-proxy?url=${encodeURIComponent(r.thumbnailUrl)}`}
-                      alt=""
-                      className="w-12 h-16 object-cover rounded-lg flex-shrink-0 bg-white/5"
-                    />
-                  ) : (
-                    <div className="w-12 h-16 rounded-lg bg-white/5 flex-shrink-0" />
-                  )}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={`/api/thumb/${r.id}`}
+                    alt=""
+                    className="w-12 h-16 object-cover rounded-lg flex-shrink-0 bg-white/5"
+                  />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <a

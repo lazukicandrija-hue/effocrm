@@ -181,6 +181,8 @@ model Reel {
   shortcode       String    // Instagram shortcode (e.g., "DYfeWm2TpUd")
   igMediaId       String?   // Instagram media ID if available
   thumbnailUrl    String?
+  thumbnailData   Bytes?    // cached image bytes — survives Instagram's link expiry
+  thumbnailType   String?   // content-type of the cached image (e.g. image/jpeg)
   caption         String?   @db.Text
   publishedAt     DateTime?
   currentViews    Int       @default(0)
