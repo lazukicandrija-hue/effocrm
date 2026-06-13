@@ -32,6 +32,7 @@ export async function POST(_req: NextRequest) {
       caption: true,
       currentViews: true,
       account: { select: { id: true, igUsername: true, username: true, niche: true } },
+      analysis: { select: { summary: true } },
     },
   });
   if (!reels.length) {
@@ -46,6 +47,7 @@ export async function POST(_req: NextRequest) {
   const payload = reels.slice(0, 25).map((r) => ({
     account: r.account.igUsername || r.account.username,
     caption: r.caption,
+    content: r.analysis?.summary || null,
     niche: r.account.niche,
     views: r.currentViews,
     overIndex: Math.round((r.currentViews / (base[r.account.id] || 1)) * 10) / 10,
