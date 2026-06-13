@@ -42,6 +42,12 @@ enum InspirationStatus {
   DONE
 }
 
+// Whether an account is one of ours or a competitor we track for inspiration
+enum Ownership {
+  OWN
+  COMPETITOR
+}
+
 // ============================================
 // MODELS
 // ============================================
@@ -70,8 +76,9 @@ model Account {
   id          String      @id @default(cuid())
   username    String      @unique
   igUsername   String?     // Real Instagram username for scraping
-  modelId     String
-  model       Model       @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  modelId     String?
+  model       Model?      @relation(fields: [modelId], references: [id], onDelete: SetNull)
+  ownership   Ownership   @default(OWN)  // OWN = one of our models' accounts; COMPETITOR = a tracked rival
   niche       String[]    @default([])  // multi-select: Golf, Talking, Omegle, Podcast, Dancing, Motion Control
   decision    Decision?   // KEEP / REMOVE / TESTING
   status      Status      @default(ACTIVE)
