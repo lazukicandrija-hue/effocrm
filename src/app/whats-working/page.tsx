@@ -32,12 +32,13 @@ export default function WhatsWorkingPage() {
   const [loading, setLoading] = useState(true);
   const [note, setNote] = useState<string | null>(null);
   const [days, setDays] = useState(7);
+  const [sort, setSort] = useState<"views" | "breakout">("views");
   const [gen, setGen] = useState<Record<string, Gen>>({});
 
   useEffect(() => {
     let live = true;
     setLoading(true);
-    fetch(`/api/insights/top-performers?days=${days}&limit=40`)
+    fetch(`/api/insights/top-performers?days=${days}&limit=40&sort=${sort}`)
       .then((r) => r.json())
       .then((d) => {
         if (!live) return;
@@ -49,7 +50,7 @@ export default function WhatsWorkingPage() {
     return () => {
       live = false;
     };
-  }, [days]);
+  }, [days, sort]);
 
   async function recreate(reel: Reel) {
     setGen((g) => ({ ...g, [reel.id]: { loading: true } }));
@@ -84,11 +85,12 @@ export default function WhatsWorkingPage() {
           What&apos;s Working
         </h1>
         <p className="text-sm text-gray-400 mt-1">
-          Your top reels — ranked by views, momentum, and how much they beat each account&apos;s own baseline.
+          Your top reels. Sort by raw <span className="text-gray-300">views</span>, or by{" "}
+          <span className="text-gray-300">breakout</span> — how hard each reel beat its own account&apos;s baseline.
         </p>
       </div>
 
-      <div className="flex gap-2 mb-4">
+      <div className="flex items-center gap-2 mb-4 flex-wrap">
         {[7, 14, 30].map((d) => (
           <button
             key={d}
@@ -98,6 +100,19 @@ export default function WhatsWorkingPage() {
             }`}
           >
             Last {d}d
+          </button>
+        ))}
+        <span className="mx-1 text-gray-700">|</span>
+        <span className="text-xs text-gray-500 mr-1">Sort:</span>
+        {([["views", "Views"], ["breakout", "Breakout"]] as const).map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setSort(key)}
+            className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
+              sort === key ? "bg-[#d4a853]/20 text-[#d4a853]" : "text-gray-400 hover:bg-white/5"
+            }`}
+          >
+            {label}
           </button>
         ))}
       </div>

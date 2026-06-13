@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const days = parseInt(searchParams.get("days") || "7");
     const limit = parseInt(searchParams.get("limit") || "40");
+    const sort = (searchParams.get("sort") || "views").toLowerCase();
     const since = subDays(new Date(), days);
 
     const reels = await prisma.reel.findMany({
@@ -83,7 +84,10 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    scored.sort((a, b) => b.score - a.score);
+    // Default: raw views (most intuitive). "breakout" = the composite score that
+    // surfaces reels punching above their own account's baseline.
+    if (sort === "breakout") scored.sort((a, b) => b.score - a.score);
+    else scored.sort((a, b) => b.views - a.views);
 
     return NextResponse.json({
       reels: scored.slice(0, limit),
