@@ -21,6 +21,7 @@ import {
   TrendingUp,
   Sparkles,
   Swords,
+  Wand2,
 } from "lucide-react";
 
 const navigation = [
@@ -29,6 +30,7 @@ const navigation = [
   { name: "Reels Analytics", href: "/reels", icon: Film },
   { name: "What's Working", href: "/whats-working", icon: TrendingUp },
   { name: "Ideas", href: "/ideas", icon: Sparkles },
+  { name: "Prompter", href: "/prompter", icon: Wand2 },
   { name: "Competitors", href: "/competitors", icon: Swords },
   { name: "Marketing", href: "/marketing", icon: Lightbulb },
   { name: "Add Views", href: "/add-views", icon: PlusCircle },
