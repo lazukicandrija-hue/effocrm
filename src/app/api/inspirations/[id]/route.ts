@@ -38,6 +38,7 @@ export async function PUT(
     if (body.thumbnailUrl !== undefined)
       data.thumbnailUrl = body.thumbnailUrl?.trim() || null;
     if (body.notes !== undefined) data.notes = body.notes?.trim() || null;
+    if (body.prompt !== undefined) data.prompt = body.prompt || null;
     if (Array.isArray(body.niche)) {
       data.niche = body.niche
         .filter((n: any) => typeof n === "string" && n.trim())

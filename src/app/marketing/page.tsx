@@ -40,6 +40,7 @@ import {
   FolderInput,
   ChevronRight,
   Home,
+  Wand2,
 } from "lucide-react";
 
 // ---- Niches (reuse Accounts niches + any custom ones already saved) ----
@@ -188,6 +189,15 @@ export default function MarketingPage() {
   const [folderName, setFolderName] = useState("");
   const [folderDeleteConfirm, setFolderDeleteConfirm] = useState<any>(null);
   const [moveTarget, setMoveTarget] = useState<any>(null); // reel being moved to a folder
+
+  // Seedance prompt generation (per reel) — reuses the async /api/prompter
+  const [promptTarget, setPromptTarget] = useState<any>(null);
+  const [promptText, setPromptText] = useState("");
+  const [promptLoading, setPromptLoading] = useState(false);
+  const [promptStatus, setPromptStatus] = useState("");
+  const [promptError, setPromptError] = useState<string | null>(null);
+  const [promptCopied, setPromptCopied] = useState(false);
+  const promptJob = useRef<string | null>(null);
 
   const fetchItems = useCallback(async () => {
     setLoading(true);
@@ -482,6 +492,88 @@ export default function MarketingPage() {
     }
   };
 
+  // ---- Seedance prompt per reel (async start → poll, reuses /api/prompter) ----
+  const openPrompt = (item: any) => {
+    setPromptTarget(item);
+    setPromptText(item.prompt || "");
+    setPromptError(null);
+    setPromptStatus("");
+    setPromptLoading(false);
+    setPromptCopied(false);
+    promptJob.current = null;
+  };
+
+  const pollPrompt = async (jobId: string, itemId: string) => {
+    if (promptJob.current !== jobId) return;
+    try {
+      const res = await fetch(`/api/prompter?jobId=${encodeURIComponent(jobId)}`);
+      const data = await res.json();
+      if (promptJob.current !== jobId) return;
+      if (data.status === "done") {
+        promptJob.current = null;
+        setPromptLoading(false);
+        setPromptStatus("");
+        setPromptText(data.prompt || "");
+        if (data.prompt) {
+          fetch(`/api/inspirations/${itemId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ prompt: data.prompt }),
+          }).catch(() => {});
+          setItems((prev) => prev.map((i) => (i.id === itemId ? { ...i, prompt: data.prompt } : i)));
+        }
+      } else if (data.status === "error" || (data.error && data.status !== "pending")) {
+        promptJob.current = null;
+        setPromptLoading(false);
+        setPromptStatus("");
+        setPromptError(data.error || "Analysis failed.");
+      } else {
+        setPromptStatus("Analyzing the reel… ~1–2 min.");
+        setTimeout(() => pollPrompt(jobId, itemId), 3000);
+      }
+    } catch {
+      if (promptJob.current === jobId) setTimeout(() => pollPrompt(jobId, itemId), 4000);
+    }
+  };
+
+  const generatePrompt = async () => {
+    if (!promptTarget) return;
+    const item = promptTarget;
+    setPromptError(null);
+    setPromptLoading(true);
+    setPromptStatus("Starting…");
+    promptJob.current = null;
+    try {
+      const res = await fetch("/api/prompter", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: item.url }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.job_id) {
+        setPromptLoading(false);
+        setPromptStatus("");
+        setPromptError(data.error || "Couldn't start the analysis.");
+        return;
+      }
+      promptJob.current = data.job_id;
+      setPromptStatus("Analyzing the reel… ~1–2 min.");
+      pollPrompt(data.job_id, item.id);
+    } catch (e: any) {
+      setPromptLoading(false);
+      setPromptStatus("");
+      setPromptError(e?.message || "Couldn't start the analysis.");
+    }
+  };
+
+  const copyPrompt = () => {
+    if (!promptText) return;
+    navigator.clipboard.writeText(promptText).then(() => {
+      setPromptCopied(true);
+      setTimeout(() => setPromptCopied(false), 1500);
+    });
+  };
+
   const hasFilters =
     search || filterNiche !== "all" || filterStatus !== "all" || filterModel !== "all";
 
@@ -702,6 +794,18 @@ export default function MarketingPage() {
                     </button>
                     {/* Hover actions */}
                     <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={() => openPrompt(item)}
+                        className={
+                          "p-1 rounded-md backdrop-blur-sm shadow-sm " +
+                          (item.prompt
+                            ? "bg-[#d4a853] text-white hover:brightness-105"
+                            : "bg-white/90 text-gray-600 hover:text-[#d4a853]")
+                        }
+                        title={item.prompt ? "Seedance prompt ready" : "Generate Seedance prompt"}
+                      >
+                        <Wand2 className="h-3.5 w-3.5" />
+                      </button>
                       <a
                         href={item.url}
                         target="_blank"
@@ -1168,6 +1272,57 @@ export default function MarketingPage() {
               </button>
             ))}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Seedance prompt for a reel */}
+      <Dialog
+        open={!!promptTarget}
+        onOpenChange={(o) => {
+          if (!o) {
+            setPromptTarget(null);
+            promptJob.current = null;
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[560px]">
+          <DialogHeader>
+            <DialogTitle>Seedance prompt</DialogTitle>
+            <DialogDescription>
+              Generate a ready-to-use Seedance prompt from this reel
+              {promptTarget?.creator ? ` — ${promptTarget.creator}` : ""}.
+            </DialogDescription>
+          </DialogHeader>
+
+          {promptText ? (
+            <div className="space-y-3 mt-2">
+              <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 max-h-72 overflow-y-auto">
+                <p className="text-sm text-gray-800 whitespace-pre-wrap">{promptText}</p>
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" onClick={copyPrompt}>
+                  {promptCopied ? "✓ Copied" : "Copy prompt"}
+                </Button>
+                <Button size="sm" variant="outline" onClick={generatePrompt} disabled={promptLoading}>
+                  {promptLoading ? "Working…" : "Regenerate"}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="mt-2">
+              <Button onClick={generatePrompt} disabled={promptLoading} className="gap-2">
+                <Wand2 className="h-4 w-4" />
+                {promptLoading ? "Generating…" : "Generate Seedance prompt"}
+              </Button>
+            </div>
+          )}
+
+          {promptStatus && <p className="text-xs text-amber-600 mt-3">⏳ {promptStatus}</p>}
+          {promptError && <p className="text-sm text-red-600 mt-3">{promptError}</p>}
+          <p className="text-[11px] text-gray-400 mt-2">
+            Downloads the reel and analyzes it (~1–2 min). If a link can&apos;t download, use the
+            Prompter page&apos;s Upload option instead.
+          </p>
         </DialogContent>
       </Dialog>
     </DashboardLayout>

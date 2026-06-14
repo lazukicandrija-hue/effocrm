@@ -137,6 +137,7 @@ model Inspiration {
   thumbnailUrl String?           @db.Text  // auto-fetched or manually pasted preview image
   niche        String[]          @default([])  // multi-select, reuses Account niches + custom
   notes        String?           @db.Text  // why I like it / why we should recreate it
+  prompt       String?           @db.Text  // generated Seedance prompt (cached)
   status       InspirationStatus @default(IDEA)  // recreation progress
   modelId      String?           // optional: which of our models this is for
   model        Model?            @relation(fields: [modelId], references: [id], onDelete: SetNull)
