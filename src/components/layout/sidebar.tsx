@@ -8,7 +8,6 @@ import { cn } from "@/lib/utils";
 import ThemeToggle from "./theme-toggle";
 import {
   LayoutDashboard,
-  PlusCircle,
   UserCircle,
   Settings,
   LogOut,
@@ -33,7 +32,6 @@ const navigation = [
   { name: "Prompter", href: "/prompter", icon: Wand2 },
   { name: "Competitors", href: "/competitors", icon: Swords },
   { name: "Marketing", href: "/marketing", icon: Lightbulb },
-  { name: "Add Views", href: "/add-views", icon: PlusCircle },
   { name: "Models", href: "/models", icon: UserCircle },
   { name: "Team", href: "/team", icon: UsersRound },
   { name: "Settings", href: "/settings", icon: Settings },

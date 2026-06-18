@@ -6,7 +6,6 @@ export const config = {
     "/dashboard/:path*",
     "/accounts/:path*",
     "/reels/:path*",
-    "/add-views/:path*",
     "/models/:path*",
     "/team/:path*",
     "/settings/:path*",
