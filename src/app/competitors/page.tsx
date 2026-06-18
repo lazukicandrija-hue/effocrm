@@ -19,6 +19,8 @@ export default function CompetitorsPage() {
   const [handle, setHandle] = useState("");
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -61,6 +63,53 @@ export default function CompetitorsPage() {
     setList((l) => l.filter((c) => c.id !== id));
   }
 
+  // "Update": ask the VPS scraper for an on-demand run (scrapes all tracked accounts,
+  // competitors included), then poll the list until a fresh sync lands.
+  async function update() {
+    if (refreshing) return;
+    const baseline = Math.max(
+      0,
+      ...list.map((c) => (c.lastSyncedAt ? new Date(c.lastSyncedAt).getTime() : 0))
+    );
+    setRefreshing(true);
+    setNote("Scrape requested — waiting for your scraper to run (can take a few minutes)…");
+    try {
+      const res = await fetch("/api/scraper/request-refresh", { method: "POST" });
+      if (!res.ok) throw new Error();
+    } catch {
+      setRefreshing(false);
+      setNote(null);
+      alert("Couldn't queue an update — please try again.");
+      return;
+    }
+    const start = Date.now();
+    const poll = async () => {
+      if (Date.now() - start > 7 * 60 * 1000) {
+        setRefreshing(false);
+        setNote("Still waiting — your scraper runs on its own schedule; this page fills in once it does.");
+        return;
+      }
+      try {
+        const fresh: Comp[] = (await (await fetch("/api/competitors")).json()).competitors || [];
+        setList(fresh);
+        const newest = Math.max(
+          0,
+          ...fresh.map((c) => (c.lastSyncedAt ? new Date(c.lastSyncedAt).getTime() : 0))
+        );
+        if (newest > baseline) {
+          setRefreshing(false);
+          setNote("Updated ✓");
+          setTimeout(() => setNote(null), 5000);
+          return;
+        }
+      } catch {
+        /* keep polling */
+      }
+      setTimeout(poll, 25000);
+    };
+    setTimeout(poll, 25000);
+  }
+
   return (
     <div className="p-8 max-w-3xl mx-auto">
       <button
@@ -69,13 +118,24 @@ export default function CompetitorsPage() {
       >
         <ArrowLeft className="h-4 w-4" /> Back
       </button>
-      <h1 className="text-2xl font-semibold" style={{ color: "#f5e6c8" }}>
-        Competitors
-      </h1>
-      <p className="text-sm text-gray-400 mt-1 mb-5">
+      <div className="flex items-start justify-between gap-3">
+        <h1 className="text-2xl font-semibold" style={{ color: "#f5e6c8" }}>
+          Competitors
+        </h1>
+        <button
+          onClick={update}
+          disabled={refreshing || list.length === 0}
+          title="Scrape your tracked accounts now (competitors included)"
+          className="px-3 py-1.5 rounded-lg text-sm font-medium flex-shrink-0 border border-white/10 bg-white/5 text-[#f5e6c8] hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {refreshing ? "Updating…" : "↻ Update"}
+        </button>
+      </div>
+      <p className="text-sm text-gray-400 mt-1 mb-2">
         Track other creators&apos; Instagram accounts — they get scraped daily and feed the idea engine,
         so you learn from their winners too.
       </p>
+      {note && <p className="text-xs text-amber-400/80 mb-3">{note}</p>}
 
       <div className="flex gap-2 mb-6">
         <input
