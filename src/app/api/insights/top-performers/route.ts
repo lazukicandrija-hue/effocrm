@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
     const since = subDays(new Date(), days);
 
     const reels = await prisma.reel.findMany({
-      where: { account: { igUsername: { not: null } } },
+      where: { account: { igUsername: { not: null }, ownership: { not: "COMPETITOR" } } },
       select: {
         id: true,
         shortcode: true,

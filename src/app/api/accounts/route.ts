@@ -22,7 +22,9 @@ export async function GET(req: NextRequest) {
     const sortBy = searchParams.get("sortBy") || "position";
     const sortOrder = searchParams.get("sortOrder") || "asc";
 
-    const where: any = {};
+    // Competitors are Account rows (ownership=COMPETITOR) but live ONLY in the
+    // Competitors tab — never show them in the Accounts tab.
+    const where: any = { ownership: { not: "COMPETITOR" } };
 
     if (search) {
       where.username = { contains: search, mode: "insensitive" };

@@ -19,7 +19,8 @@ export async function GET(req: NextRequest) {
     const customTo = searchParams.get("to");
 
     // Build account filter
-    const accountFilter: any = {};
+    // Exclude competitors (ownership=COMPETITOR) from the user's own dashboard metrics.
+    const accountFilter: any = { ownership: { not: "COMPETITOR" } };
     if (modelId && modelId !== "all") {
       accountFilter.modelId = modelId;
     }
@@ -176,7 +177,9 @@ export async function GET(req: NextRequest) {
     // views24hFromNewReels: current views on reels POSTED in the last 24h.
     const since24h = subHours(now, 24);
     const reelScope: any =
-      modelId && modelId !== "all" ? { account: { modelId } } : {};
+      modelId && modelId !== "all"
+        ? { account: { modelId, ownership: { not: "COMPETITOR" } } }
+        : { account: { ownership: { not: "COMPETITOR" } } };
     const scopedReels = await prisma.reel.findMany({
       where: reelScope,
       select: { id: true, currentViews: true, publishedAt: true },

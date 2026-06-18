@@ -28,6 +28,7 @@ export async function GET(req: NextRequest) {
     const accounts = await prisma.account.findMany({
       where: {
         igUsername: { not: null },
+        ownership: { not: "COMPETITOR" },
         ...(accountId ? { id: accountId } : {}),
       },
       select: {
@@ -45,7 +46,7 @@ export async function GET(req: NextRequest) {
       where: {
         ...accountFilter,
         scrapedAt: { gte: startDate },
-        account: { igUsername: { not: null } },
+        account: { igUsername: { not: null }, ownership: { not: "COMPETITOR" } },
       },
       orderBy: { scrapedAt: "asc" },
       select: {
@@ -103,7 +104,7 @@ export async function GET(req: NextRequest) {
       where: {
         scrapedAt: { gte: startDate },
         reel: {
-          account: { igUsername: { not: null } },
+          account: { igUsername: { not: null }, ownership: { not: "COMPETITOR" } },
           ...(accountId ? { accountId } : {}),
         },
       },

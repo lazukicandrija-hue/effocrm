@@ -20,9 +20,10 @@ export async function GET(req: NextRequest) {
     const sortOrder = searchParams.get("sortOrder") || "desc";
 
     // Account filter (reused for the list and the 24h summary)
-    const accountFilter: any = {};
+    // Reel-level filter; always exclude competitor accounts' reels.
+    const accountFilter: any = { account: { ownership: { not: "COMPETITOR" } } };
     if (accountId) accountFilter.accountId = accountId;
-    if (igUsername) accountFilter.account = { igUsername: igUsername.toLowerCase() };
+    if (igUsername) accountFilter.account = { ...accountFilter.account, igUsername: igUsername.toLowerCase() };
 
     // Filter by when the reel was POSTED (publishedAt) — powers the "last 24h" view.
     const reelFilter: any = { ...accountFilter };
