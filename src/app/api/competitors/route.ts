@@ -5,6 +5,14 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 
+// Accept a profile link, @handle, or plain handle → the bare lowercase username.
+function normalizeHandle(input: string): string {
+  let s = String(input || "").trim();
+  const m = s.match(/instagram\.com\/([^/?#]+)/i);
+  if (m) s = m[1];
+  return s.replace(/^@/, "").replace(/\/+$/, "").trim().toLowerCase();
+}
+
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -17,6 +25,7 @@ export async function GET() {
       username: true,
       igUsername: true,
       followers: true,
+      niche: true,
       lastSyncedAt: true,
       _count: { select: { reels: true } },
     },
@@ -28,15 +37,19 @@ export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { igUsername } = await req.json().catch(() => ({}));
-  const handle = String(igUsername || "").replace(/^@/, "").trim().toLowerCase();
-  if (!handle) return NextResponse.json({ error: "Instagram username required." }, { status: 400 });
+  const body = await req.json().catch(() => ({}));
+  const handle = normalizeHandle(body.igUsername || body.url || "");
+  if (!handle) return NextResponse.json({ error: "Instagram username or link required." }, { status: 400 });
+  const niche: string[] = Array.isArray(body.niche)
+    ? body.niche.filter((n: any) => typeof n === "string" && n.trim()).map((n: string) => n.trim())
+    : [];
 
-  // username is unique — upsert so re-adding just flags it COMPETITOR.
+  // username is unique — upsert so re-adding just (re)flags it COMPETITOR.
+  // Only overwrite niche when some is provided, so re-adding never wipes it.
   const account = await prisma.account.upsert({
     where: { username: handle },
-    update: { ownership: "COMPETITOR", igUsername: handle },
-    create: { username: handle, igUsername: handle, ownership: "COMPETITOR" },
+    update: { ownership: "COMPETITOR", igUsername: handle, ...(niche.length ? { niche } : {}) },
+    create: { username: handle, igUsername: handle, ownership: "COMPETITOR", niche },
   });
   return NextResponse.json({ account });
 }
