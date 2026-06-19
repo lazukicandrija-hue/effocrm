@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ExternalLink, Trash2, RefreshCw } from "lucide-react";
+import DashboardLayout from "@/components/layout/dashboard-layout";
 
 type Comp = {
   id: string;
@@ -138,7 +139,8 @@ export default function CompetitorsPage() {
   const shown = filter === "all" ? list : list.filter((c) => (c.niche || []).includes(filter));
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
+    <DashboardLayout>
+    <div className="max-w-4xl mx-auto">
       <button
         onClick={() => router.back()}
         className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-[#f5e6c8] mb-4 transition-colors"
@@ -162,7 +164,7 @@ export default function CompetitorsPage() {
       </div>
       <p className="text-sm text-gray-400 mt-1 mb-5">
         Track creators you want to learn from — drop an Instagram link or handle, tag the niche, and
-        they get scraped alongside your accounts to feed the idea engine.
+        they get scraped alongside your accounts so you can study their winners.
       </p>
       {note && <p className="text-xs text-amber-400/80 mb-4">{note}</p>}
 
@@ -299,5 +301,6 @@ export default function CompetitorsPage() {
         </div>
       )}
     </div>
+    </DashboardLayout>
   );
 }

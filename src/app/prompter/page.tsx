@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Upload } from "lucide-react";
+import DashboardLayout from "@/components/layout/dashboard-layout";
 
 type Result = { prompt: string; description: string; firstFrame: string; transcript: string };
 
@@ -118,7 +119,8 @@ export default function PrompterPage() {
   }
 
   return (
-    <div className="p-8 max-w-3xl mx-auto">
+    <DashboardLayout>
+    <div className="max-w-3xl mx-auto">
       <button
         onClick={() => router.back()}
         className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-[#f5e6c8] mb-4 transition-colors"
@@ -226,5 +228,6 @@ export default function PrompterPage() {
         </div>
       )}
     </div>
+    </DashboardLayout>
   );
 }

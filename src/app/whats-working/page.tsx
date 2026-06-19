@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
+import DashboardLayout from "@/components/layout/dashboard-layout";
 
 type Reel = {
   id: string;
@@ -82,7 +83,8 @@ export default function WhatsWorkingPage() {
   }
 
   return (
-    <div className="p-8 max-w-5xl mx-auto">
+    <DashboardLayout>
+    <div className="max-w-5xl mx-auto">
       <button
         onClick={() => router.back()}
         className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-[#f5e6c8] mb-4 transition-colors"
@@ -213,5 +215,6 @@ export default function WhatsWorkingPage() {
         </div>
       )}
     </div>
+    </DashboardLayout>
   );
 }
