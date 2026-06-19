@@ -75,7 +75,7 @@ const STATUS_VARIANTS: Record<string, "success" | "warning" | "secondary" | "dan
 const emptyForm = {
   username: "",
   igUsername: "",
-  profileUrl: "",
+  profileUrl: "https://instagram.com/",
   modelId: "",
   niche: [] as string[],
   decision: "",
@@ -461,6 +461,10 @@ export default function AccountsPage() {
         decision: formData.decision || null,
         lastPost: formData.lastPost || null,
         accountCreatedDate: formData.accountCreatedDate || null,
+        // A bare "https://instagram.com/" with no handle = no custom URL.
+        profileUrl: /^https?:\/\/(www\.)?instagram\.com\/?$/i.test(formData.profileUrl.trim())
+          ? ""
+          : formData.profileUrl.trim(),
       };
 
       const res = await fetch(url, {
@@ -949,9 +953,28 @@ export default function AccountsPage() {
                 <Input
                   placeholder="username (without @)"
                   value={formData.username}
-                  onChange={(e) =>
-                    setFormData({ ...formData, username: e.target.value })
-                  }
+                  onChange={(e) => {
+                    const u = e.target.value;
+                    const handle = u.replace(/^@/, "").trim();
+                    setFormData((prev) => {
+                      const prevHandle = prev.username.replace(/^@/, "").trim();
+                      // Auto-build the Profile URL from the username — unless it was
+                      // manually customized to something other than the IG default.
+                      const wasAuto =
+                        !prev.profileUrl ||
+                        prev.profileUrl === "https://instagram.com/" ||
+                        prev.profileUrl === `https://instagram.com/${prevHandle}`;
+                      return {
+                        ...prev,
+                        username: u,
+                        profileUrl: wasAuto
+                          ? handle
+                            ? `https://instagram.com/${handle}`
+                            : "https://instagram.com/"
+                          : prev.profileUrl,
+                      };
+                    });
+                  }}
                 />
               </div>
               <div className="space-y-2">
