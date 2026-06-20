@@ -113,15 +113,24 @@ function isHttpUrl(v: string) {
 // (the proxy returns a 1x1 pixel on failure — we detect that via naturalWidth).
 function ReelThumb({
   src,
+  inspirationId,
   platform,
   className,
 }: {
   src?: string | null;
+  inspirationId?: string;
   platform?: string | null;
   className?: string;
 }) {
   const [errored, setErrored] = useState(false);
-  const ok = src && !errored;
+  // Prefer the cached/proxy-backed inspiration thumbnail endpoint; otherwise a directly
+  // proxied URL (TikTok/YouTube oembed image, or a manually pasted preview).
+  const imgSrc = inspirationId
+    ? `/api/inspirations/${inspirationId}/thumb`
+    : src
+    ? `/api/img-proxy?url=${encodeURIComponent(src)}`
+    : null;
+  const ok = imgSrc && !errored;
   return (
     <div
       className={
@@ -132,7 +141,7 @@ function ReelThumb({
       {ok ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={`/api/img-proxy?url=${encodeURIComponent(src!)}`}
+          src={imgSrc!}
           alt="reel preview"
           className="w-full h-full object-cover"
           loading="lazy"
@@ -776,7 +785,7 @@ export default function MarketingPage() {
                   {/* Thumbnail + overlays */}
                   <div className="relative">
                     <a href={item.url} target="_blank" rel="noopener noreferrer">
-                      <ReelThumb src={item.thumbnailUrl} platform={item.platform} />
+                      <ReelThumb inspirationId={item.id} src={item.thumbnailUrl} platform={item.platform} />
                     </a>
                     {/* Status pill — colored by status, click to flip In progress <-> Done */}
                     <button

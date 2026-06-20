@@ -138,6 +138,9 @@ model Inspiration {
   niche        String[]          @default([])  // multi-select, reuses Account niches + custom
   notes        String?           @db.Text  // why I like it / why we should recreate it
   prompt       String?           @db.Text  // generated Seedance prompt (cached)
+  thumbnailData    Bytes?        // cached preview image bytes (via the proxy pipeline)
+  thumbnailType    String?       // content-type of the cached preview
+  thumbnailTriedAt DateTime?     // last preview-fetch attempt (rate-limits retries)
   status       InspirationStatus @default(IDEA)  // recreation progress
   modelId      String?           // optional: which of our models this is for
   model        Model?            @relation(fields: [modelId], references: [id], onDelete: SetNull)
