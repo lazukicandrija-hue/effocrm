@@ -17,8 +17,10 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Email and password are required");
         }
 
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email },
+        // Case-insensitive + trimmed so "Test@Effortless.com " logs in as the
+        // account stored as "test@effortless.com".
+        const user = await prisma.user.findFirst({
+          where: { email: { equals: credentials.email.trim(), mode: "insensitive" } },
         });
 
         if (!user) {

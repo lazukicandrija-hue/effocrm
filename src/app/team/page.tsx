@@ -31,7 +31,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatDate } from "@/lib/utils";
-import { Plus, Trash2, Shield } from "lucide-react";
+import { Plus, Trash2, Shield, KeyRound } from "lucide-react";
 
 export default function TeamPage() {
   const { data: session } = useSession();
@@ -46,6 +46,9 @@ export default function TeamPage() {
   });
   const [saving, setSaving] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [resetTarget, setResetTarget] = useState<any>(null);
+  const [resetPw, setResetPw] = useState("");
+  const [resetting, setResetting] = useState(false);
 
   const isAdmin = (session?.user as any)?.role === "ADMIN";
 
@@ -113,6 +116,31 @@ export default function TeamPage() {
       }
     } catch {
       alert("Failed to delete user");
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!resetTarget || resetPw.length < 6) return;
+    setResetting(true);
+    try {
+      const res = await fetch(`/api/users/${resetTarget.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: resetPw }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || "Failed to reset password");
+        return;
+      }
+      const name = resetTarget.name;
+      setResetTarget(null);
+      setResetPw("");
+      alert(`Password updated. Share the new password with ${name} so they can log in.`);
+    } catch {
+      alert("Failed to reset password");
+    } finally {
+      setResetting(false);
     }
   };
 
@@ -214,12 +242,25 @@ export default function TeamPage() {
                       {isAdmin && (
                         <TableCell className="text-right">
                           {user.id !== (session?.user as any)?.id && (
-                            <button
-                              onClick={() => setDeleteConfirm(user.id)}
-                              className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
+                            <div className="flex items-center justify-end gap-1">
+                              <button
+                                onClick={() => {
+                                  setResetTarget(user);
+                                  setResetPw("");
+                                }}
+                                title="Reset password"
+                                className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-[#d4a853] transition-colors"
+                              >
+                                <KeyRound className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() => setDeleteConfirm(user.id)}
+                                title="Remove member"
+                                className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
                           )}
                         </TableCell>
                       )}
@@ -333,6 +374,36 @@ export default function TeamPage() {
               onClick={() => deleteConfirm && handleDelete(deleteConfirm)}
             >
               Remove
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reset password */}
+      <Dialog open={!!resetTarget} onOpenChange={() => setResetTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reset password</DialogTitle>
+            <DialogDescription>
+              Set a new password for {resetTarget?.name} ({resetTarget?.email}), then share it with
+              them to log in.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 mt-2">
+            <Label>New password</Label>
+            <Input
+              type="text"
+              placeholder="Minimum 6 characters"
+              value={resetPw}
+              onChange={(e) => setResetPw(e.target.value)}
+            />
+          </div>
+          <div className="flex justify-end gap-3 pt-4">
+            <Button variant="outline" onClick={() => setResetTarget(null)}>
+              Cancel
+            </Button>
+            <Button onClick={handleResetPassword} disabled={resetting || resetPw.length < 6}>
+              {resetting ? "Saving..." : "Set password"}
             </Button>
           </div>
         </DialogContent>

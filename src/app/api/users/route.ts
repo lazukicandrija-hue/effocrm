@@ -49,8 +49,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Check if email exists
-    const existing = await prisma.user.findUnique({ where: { email } });
+    // Normalize the email so login (case-insensitive) always matches.
+    const normEmail = String(email).trim().toLowerCase();
+
+    // Check if email exists (case-insensitive)
+    const existing = await prisma.user.findFirst({
+      where: { email: { equals: normEmail, mode: "insensitive" } },
+    });
     if (existing) {
       return NextResponse.json(
         { error: "A user with this email already exists" },
@@ -62,7 +67,7 @@ export async function POST(req: NextRequest) {
 
     const user = await prisma.user.create({
       data: {
-        email,
+        email: normEmail,
         name,
         password: hashedPassword,
         role: role || "MEMBER",

@@ -3,8 +3,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import bcrypt from "bcryptjs";
 
-// PUT - Update user role
+// PUT - Update a user (role, name, email, and/or password)
 export async function PUT(
   req: NextRequest,
   { params }: { params: { id: string } }
@@ -16,9 +17,24 @@ export async function PUT(
 
   try {
     const body = await req.json();
+    const data: any = {};
+    if (body.role === "ADMIN" || body.role === "MEMBER") data.role = body.role;
+    if (typeof body.name === "string" && body.name.trim()) data.name = body.name.trim();
+    if (typeof body.email === "string" && body.email.trim()) {
+      data.email = body.email.trim().toLowerCase();
+    }
+    if (body.password !== undefined) {
+      if (typeof body.password !== "string" || body.password.length < 6) {
+        return NextResponse.json(
+          { error: "Password must be at least 6 characters" },
+          { status: 400 }
+        );
+      }
+      data.password = await bcrypt.hash(body.password, 12);
+    }
     const user = await prisma.user.update({
       where: { id: params.id },
-      data: { role: body.role },
+      data,
       select: { id: true, email: true, name: true, role: true, createdAt: true },
     });
     return NextResponse.json(user);
