@@ -5,8 +5,8 @@ import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { detectPlatform, fetchLinkPreview } from "@/lib/link-preview";
 
-// 2-state model: In progress = RECREATING, Done = DONE (legacy IDEA tolerated).
-const STATUSES = ["RECREATING", "DONE"];
+// 3-state model: In progress = RECREATING, Done = DONE, Issue = ISSUE (legacy IDEA tolerated).
+const STATUSES = ["RECREATING", "DONE", "ISSUE"];
 
 // PUT - update an inspiration
 export async function PUT(
@@ -39,6 +39,8 @@ export async function PUT(
       data.thumbnailUrl = body.thumbnailUrl?.trim() || null;
     if (body.notes !== undefined) data.notes = body.notes?.trim() || null;
     if (body.prompt !== undefined) data.prompt = body.prompt || null;
+    if (body.issueNote !== undefined)
+      data.issueNote = body.issueNote?.trim() || null;
     if (Array.isArray(body.niche)) {
       data.niche = body.niche
         .filter((n: any) => typeof n === "string" && n.trim())

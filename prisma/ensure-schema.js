@@ -21,6 +21,10 @@ const statements = [
      END $$;`,
   ],
   [
+    "InspirationStatus ISSUE value",
+    `ALTER TYPE "InspirationStatus" ADD VALUE IF NOT EXISTS 'ISSUE';`,
+  ],
+  [
     "Inspiration table",
     `CREATE TABLE IF NOT EXISTS "Inspiration" (
        "id" TEXT NOT NULL,
@@ -31,6 +35,7 @@ const statements = [
        "thumbnailUrl" TEXT,
        "niche" TEXT[] DEFAULT ARRAY[]::TEXT[],
        "notes" TEXT,
+       "issueNote" TEXT,
        "status" "InspirationStatus" NOT NULL DEFAULT 'IDEA',
        "modelId" TEXT,
        "position" INTEGER NOT NULL DEFAULT 0,
@@ -38,6 +43,10 @@ const statements = [
        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
        CONSTRAINT "Inspiration_pkey" PRIMARY KEY ("id")
      );`,
+  ],
+  [
+    "Inspiration.issueNote column",
+    `ALTER TABLE "Inspiration" ADD COLUMN IF NOT EXISTS "issueNote" TEXT;`,
   ],
   [
     "Inspiration_modelId_idx",

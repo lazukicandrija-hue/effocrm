@@ -5,9 +5,9 @@ import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { detectPlatform, fetchLinkPreview } from "@/lib/link-preview";
 
-// 2-state model: "In progress" is stored as RECREATING, "Done" as DONE.
+// 3-state model: "In progress" = RECREATING, "Done" = DONE, "Issue" = ISSUE.
 // Legacy rows may still hold IDEA — treated as In progress on read.
-const STATUSES = ["RECREATING", "DONE"];
+const STATUSES = ["RECREATING", "DONE", "ISSUE"];
 
 // GET - list inspirations (with optional filters) + distinct niches in use
 export async function GET(req: NextRequest) {
@@ -35,6 +35,7 @@ export async function GET(req: NextRequest) {
     }
     if (niche !== "all") where.niche = { has: niche };
     if (status === "DONE") where.status = "DONE";
+    else if (status === "ISSUE") where.status = "ISSUE";
     else if (status === "RECREATING")
       where.status = { in: ["IDEA", "RECREATING"] }; // "In progress" incl. legacy
     if (modelId !== "all") {
@@ -106,6 +107,7 @@ export async function POST(req: NextRequest) {
         thumbnailUrl,
         niche,
         notes: body.notes?.trim() || null,
+        issueNote: body.issueNote?.trim() || null,
         status,
         modelId: body.modelId || null,
         folderId: body.folderId || null,

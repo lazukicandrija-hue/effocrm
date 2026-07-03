@@ -40,6 +40,7 @@ enum InspirationStatus {
   IDEA
   RECREATING
   DONE
+  ISSUE
 }
 
 // Whether an account is one of ours or a competitor we track for inspiration
@@ -137,6 +138,7 @@ model Inspiration {
   thumbnailUrl String?           @db.Text  // auto-fetched or manually pasted preview image
   niche        String[]          @default([])  // multi-select, reuses Account niches + custom
   notes        String?           @db.Text  // why I like it / why we should recreate it
+  issueNote    String?           @db.Text  // when status = ISSUE: what's wrong / needs fixing
   prompt       String?           @db.Text  // generated Seedance prompt (cached)
   thumbnailData    Bytes?        // cached preview image bytes (via the proxy pipeline)
   thumbnailType    String?       // content-type of the cached preview

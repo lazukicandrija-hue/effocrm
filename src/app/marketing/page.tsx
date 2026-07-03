@@ -30,6 +30,7 @@ import {
   Pencil,
   Trash2,
   Clapperboard,
+  AlertTriangle,
   Lightbulb,
   Loader2,
   RefreshCw,
@@ -77,20 +78,25 @@ function folderPathLabel(f: any, all: any[]): string {
   return parts.join(" / ");
 }
 
-// ---- Status: a simple 2-state model. The underlying DB enum still has 3 values,
-// but the Marketing tab only shows "In progress" (yellow) and "Done" (green).
-// Anything that isn't DONE counts as In progress (covers any legacy Idea/Recreating).
+// ---- Status: In progress (yellow), Done (green), Issue (red). "Issue" flags a
+// reel that has a problem worth calling out, with an optional note explaining it.
+// Any legacy Idea/Recreating value collapses to "In progress".
 const STATUS_META: Record<
   string,
   { label: string; color: string; text: string }
 > = {
   RECREATING: { label: "In progress", color: "#eab308", text: "#1f2937" }, // yellow pill, dark text
   DONE: { label: "Done", color: "#16a34a", text: "#ffffff" }, // green pill, white text
+  ISSUE: { label: "Issue", color: "#dc2626", text: "#ffffff" }, // red pill, white text
 };
-const STATUS_ORDER = ["RECREATING", "DONE"];
-// Collapse any stored status to one of the two we display/store.
+const STATUS_ORDER = ["RECREATING", "DONE", "ISSUE"];
+// Clicking a card's status pill cycles through the three states in this order.
+const STATUS_CYCLE = ["RECREATING", "DONE", "ISSUE"];
+// Collapse any stored status to one of the three we display/store.
 function statusKey(s: string | null | undefined) {
-  return s === "DONE" ? "DONE" : "RECREATING";
+  if (s === "DONE") return "DONE";
+  if (s === "ISSUE") return "ISSUE";
+  return "RECREATING";
 }
 
 const emptyForm = {
@@ -102,6 +108,7 @@ const emptyForm = {
   status: "RECREATING", // = "In progress"
   modelId: "",
   notes: "",
+  issueNote: "",
   folderId: "",
 };
 
@@ -324,6 +331,7 @@ export default function MarketingPage() {
       status: statusKey(item.status),
       modelId: item.modelId || "",
       notes: item.notes || "",
+      issueNote: item.issueNote || "",
       folderId: item.folderId || "",
     });
     lastPreviewedUrl.current = item.url || "";
@@ -398,9 +406,11 @@ export default function MarketingPage() {
     }
   };
 
-  // Click the status circle to flip In progress <-> Done (no editor needed).
-  const toggleStatus = async (item: any) => {
-    const next = item.status === "DONE" ? "RECREATING" : "DONE";
+  // Click the status pill to cycle In progress -> Done -> Issue (no editor needed).
+  const cycleStatus = async (item: any) => {
+    const cur = statusKey(item.status);
+    const next =
+      STATUS_CYCLE[(STATUS_CYCLE.indexOf(cur) + 1) % STATUS_CYCLE.length];
     setItems((prev) =>
       prev.map((i) => (i.id === item.id ? { ...i, status: next } : i))
     );
@@ -776,6 +786,11 @@ export default function MarketingPage() {
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
             {items.map((item, idx) => {
               const st = STATUS_META[statusKey(item.status)];
+              const nextKey =
+                STATUS_CYCLE[
+                  (STATUS_CYCLE.indexOf(statusKey(item.status)) + 1) %
+                    STATUS_CYCLE.length
+                ];
               return (
                 <Card
                   key={item.id}
@@ -793,9 +808,9 @@ export default function MarketingPage() {
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        toggleStatus(item);
+                        cycleStatus(item);
                       }}
-                      title={`${st.label} — click to mark ${item.status === "DONE" ? "In progress" : "Done"}`}
+                      title={`${st.label} — click to mark ${STATUS_META[nextKey].label}`}
                       style={{ backgroundColor: st.color, color: st.text }}
                       className="absolute top-2 left-2 inline-flex items-center px-2 py-1 rounded-full text-[10px] font-semibold leading-none shadow-sm hover:brightness-105 transition"
                     >
@@ -888,6 +903,16 @@ export default function MarketingPage() {
                             +{item.niche.length - 3}
                           </span>
                         )}
+                      </div>
+                    )}
+
+                    {/* Issue note (only shown when the reel is flagged as an issue) */}
+                    {statusKey(item.status) === "ISSUE" && item.issueNote && (
+                      <div className="flex items-start gap-1 text-[11px] leading-snug text-red-600">
+                        <AlertTriangle className="h-3 w-3 mt-[1px] flex-shrink-0" />
+                        <span title={item.issueNote} className="line-clamp-2">
+                          {item.issueNote}
+                        </span>
                       </div>
                     )}
 
@@ -1000,6 +1025,22 @@ export default function MarketingPage() {
                   </Select>
                 </div>
               </div>
+
+              {formData.status === "ISSUE" && (
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-1.5 text-red-600">
+                    <AlertTriangle className="h-3.5 w-3.5" /> What&apos;s the issue?
+                  </Label>
+                  <Textarea
+                    placeholder="Describe the problem so the team knows what needs fixing…"
+                    value={formData.issueNote}
+                    onChange={(e) =>
+                      setFormData({ ...formData, issueNote: e.target.value })
+                    }
+                    className="min-h-[70px] border-red-200 focus-visible:ring-red-300"
+                  />
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label>Title / caption</Label>
