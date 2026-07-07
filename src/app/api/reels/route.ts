@@ -15,6 +15,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const accountId = searchParams.get("accountId");
     const igUsername = searchParams.get("igUsername");
+    const modelId = searchParams.get("modelId");
     const period = searchParams.get("period") || "7d";
     const sortBy = searchParams.get("sortBy") || "currentViews";
     const sortOrder = searchParams.get("sortOrder") || "desc";
@@ -24,6 +25,7 @@ export async function GET(req: NextRequest) {
     const accountFilter: any = { account: { ownership: { not: "COMPETITOR" } } };
     if (accountId) accountFilter.accountId = accountId;
     if (igUsername) accountFilter.account = { ...accountFilter.account, igUsername: igUsername.toLowerCase() };
+    if (modelId && modelId !== "all") accountFilter.account = { ...accountFilter.account, modelId };
 
     // Filter by when the reel was POSTED (publishedAt) — powers the "last 24h" view.
     const reelFilter: any = { ...accountFilter };
@@ -32,6 +34,8 @@ export async function GET(req: NextRequest) {
       reelFilter.publishedAt = { gte: subHours(new Date(), 24) };
     } else if (postedWithin === "7d") {
       reelFilter.publishedAt = { gte: subDays(new Date(), 7) };
+    } else if (postedWithin === "30d") {
+      reelFilter.publishedAt = { gte: subDays(new Date(), 30) };
     }
 
     // Get all reels with latest snapshot data

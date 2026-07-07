@@ -24,23 +24,10 @@ import {
   Activity,
   Clock,
   Film,
+  Play,
+  ExternalLink,
   RefreshCw,
 } from "lucide-react";
-import {
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-} from "recharts";
 
 interface DashboardStats {
   totalAccounts: number;
@@ -65,24 +52,6 @@ interface DashboardStats {
   statusDistribution: any[];
 }
 
-const NICHE_COLORS: Record<string, string> = {
-  Golf: "#22c55e",
-  Talking: "#3b82f6",
-  Omegle: "#a855f7",
-  Podcast: "#f59e0b",
-  Dancing: "#ec4899",
-  "Motion Control": "#14b8a6",
-};
-
-const NICHE_LABELS: Record<string, string> = {
-  Golf: "Golf",
-  Talking: "Talking",
-  Omegle: "Omegle",
-  Podcast: "Podcast",
-  Dancing: "Dancing",
-  "Motion Control": "Motion Control",
-};
-
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -90,6 +59,10 @@ export default function DashboardPage() {
   const [modelId, setModelId] = useState("all");
   const [models, setModels] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  // Latest-reels feed (Instagram-style grid of newly-scraped reels)
+  const [reels, setReels] = useState<any[]>([]);
+  const [reelsLoading, setReelsLoading] = useState(true);
+  const [reelWindow, setReelWindow] = useState("7d"); // 24h | 7d | 30d
 
   const fetchStats = useCallback(async () => {
     try {
@@ -133,6 +106,7 @@ export default function DashboardPage() {
         setStats(d);
         const ls = d.lastSyncedAt ? new Date(d.lastSyncedAt).getTime() : 0;
         if (ls > baseline) {
+          fetchReels(); // fresh scrape landed — refresh the reels feed too
           setRefreshing(false);
           return;
         }
@@ -154,6 +128,26 @@ export default function DashboardPage() {
     }
   }, []);
 
+  // Pull the newest reels across every (owned) account for the feed. Respects the
+  // model filter and the selected time window; newest-posted first.
+  const fetchReels = useCallback(async () => {
+    try {
+      const params = new URLSearchParams({
+        sortBy: "publishedAt",
+        sortOrder: "desc",
+        modelId,
+        postedWithin: reelWindow,
+      });
+      const res = await fetch(`/api/reels?${params}`);
+      const data = await res.json();
+      setReels(Array.isArray(data.reels) ? data.reels : []);
+    } catch (error) {
+      console.error("Failed to fetch reels:", error);
+    } finally {
+      setReelsLoading(false);
+    }
+  }, [modelId, reelWindow]);
+
   useEffect(() => {
     fetchModels();
   }, [fetchModels]);
@@ -162,6 +156,11 @@ export default function DashboardPage() {
     setLoading(true);
     fetchStats();
   }, [fetchStats]);
+
+  useEffect(() => {
+    setReelsLoading(true);
+    fetchReels();
+  }, [fetchReels]);
 
   const StatCard = ({
     title,
@@ -426,157 +425,117 @@ export default function DashboardPage() {
               </CardContent>
             </Card>
 
-            {/* Charts */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Line Chart - Views over time */}
-              <Card className="animate-fade-in lg:col-span-2">
-                <CardHeader>
-                  <CardTitle className="text-base">Views Over Time</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ResponsiveContainer width="100%" height={320}>
-                    <LineChart data={stats.viewsOverTime}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                      <XAxis
-                        dataKey="date"
-                        tick={{ fontSize: 11, fill: "#9ca3af" }}
-                        tickLine={false}
-                        axisLine={{ stroke: "#e5e7eb" }}
-                      />
-                      <YAxis
-                        tick={{ fontSize: 11, fill: "#9ca3af" }}
-                        tickLine={false}
-                        axisLine={{ stroke: "#e5e7eb" }}
-                        tickFormatter={(v) => formatNumber(v)}
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          borderRadius: "8px",
-                          border: "1px solid #e5e7eb",
-                          boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
-                        }}
-                        formatter={(value: any) => [formatNumber(Number(value)), ""]}
-                      />
-                      <Legend />
-                      <Line
-                        type="monotone"
-                        dataKey="instaViews"
-                        stroke="#E1306C"
-                        strokeWidth={2}
-                        dot={false}
-                        name="Instagram"
-                        activeDot={{ r: 5, stroke: "#E1306C", strokeWidth: 2, fill: "#fff" }}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="fbViews"
-                        stroke="#1877F2"
-                        strokeWidth={2}
-                        dot={false}
-                        name="Facebook"
-                        activeDot={{ r: 5, stroke: "#1877F2", strokeWidth: 2, fill: "#fff" }}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="total"
-                        stroke="#d4a853"
-                        strokeWidth={2.5}
-                        dot={false}
-                        name="Total"
-                        activeDot={{ r: 5, stroke: "#d4a853", strokeWidth: 2, fill: "#fff" }}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
-
-              {/* Bar Chart - Views by niche */}
-              <Card className="animate-fade-in">
-                <CardHeader>
-                  <CardTitle className="text-base">Views by Niche</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ResponsiveContainer width="100%" height={280}>
-                    <BarChart data={stats.viewsByNiche}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                      <XAxis
-                        dataKey="niche"
-                        tick={{ fontSize: 11, fill: "#9ca3af" }}
-                        tickLine={false}
-                        axisLine={{ stroke: "#e5e7eb" }}
-                        tickFormatter={(v) => NICHE_LABELS[v] || v}
-                      />
-                      <YAxis
-                        tick={{ fontSize: 11, fill: "#9ca3af" }}
-                        tickLine={false}
-                        axisLine={{ stroke: "#e5e7eb" }}
-                        tickFormatter={(v) => formatNumber(v)}
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          borderRadius: "8px",
-                          border: "1px solid #e5e7eb",
-                        }}
-                        formatter={(value: any, name: any) => [
-                          formatNumber(Number(value)),
-                          name === "instaViews" ? "Instagram" : "Facebook",
-                        ]}
-                        labelFormatter={(label) => NICHE_LABELS[label] || label}
-                      />
-                      <Bar dataKey="instaViews" fill="#E1306C" radius={[4, 4, 0, 0]} name="instaViews" />
-                      <Bar dataKey="fbViews" fill="#1877F2" radius={[4, 4, 0, 0]} name="fbViews" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
-
-              {/* Pie Chart - Status distribution */}
-              <Card className="animate-fade-in">
-                <CardHeader>
-                  <CardTitle className="text-base">Account Status</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ResponsiveContainer width="100%" height={280}>
-                    <PieChart>
-                      <Pie
-                        data={stats.statusDistribution.filter((s: any) => s.value > 0)}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={60}
-                        outerRadius={100}
-                        paddingAngle={4}
-                        dataKey="value"
+            {/* Latest Reels — an Instagram-style feed of the newest reels the
+                scraper picked up from every account in the Accounts tab. Click a
+                tile to open the reel on Instagram. Updates on "Refresh now". */}
+            <Card className="animate-fade-in">
+              <CardHeader className="pb-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Film className="h-4 w-4 text-[#d4a853]" />
+                      Latest Reels
+                    </CardTitle>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Newest reels from every account — click a thumbnail to open it on Instagram
+                    </p>
+                  </div>
+                  {/* Time-window toggle */}
+                  <div className="flex bg-white rounded-lg border border-gray-200 p-1">
+                    {[
+                      { k: "24h", label: "24h" },
+                      { k: "7d", label: "7 days" },
+                      { k: "30d", label: "30 days" },
+                    ].map((w) => (
+                      <button
+                        key={w.k}
+                        onClick={() => setReelWindow(w.k)}
+                        className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                          reelWindow === w.k
+                            ? "bg-[#0a0a0a] text-[#f5e6c8]"
+                            : "text-gray-500 hover:text-gray-700"
+                        }`}
                       >
-                        {stats.statusDistribution
-                          .filter((s: any) => s.value > 0)
-                          .map((entry: any, index: number) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
-                          ))}
-                      </Pie>
-                      <Tooltip
-                        contentStyle={{
-                          borderRadius: "8px",
-                          border: "1px solid #e5e7eb",
-                        }}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <div className="flex justify-center gap-6 -mt-4">
-                    {stats.statusDistribution.map((status: any) => (
-                      <div key={status.name} className="flex items-center gap-2">
-                        <div
-                          className="w-3 h-3 rounded-full"
-                          style={{ backgroundColor: status.color }}
-                        />
-                        <span className="text-xs text-gray-600">
-                          {status.name} ({status.value})
-                        </span>
-                      </div>
+                        {w.label}
+                      </button>
                     ))}
                   </div>
-                </CardContent>
-              </Card>
-            </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {reelsLoading ? (
+                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6 gap-3">
+                    {[...Array(12)].map((_, i) => (
+                      <div
+                        key={i}
+                        className="aspect-[9/16] rounded-lg bg-gray-100 animate-pulse"
+                      />
+                    ))}
+                  </div>
+                ) : reels.length === 0 ? (
+                  <div className="py-12 text-center text-gray-500">
+                    <Film className="h-10 w-10 mx-auto mb-3 text-gray-300" />
+                    <p className="text-sm">No reels posted in this window.</p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Try a wider range, or press{" "}
+                      <span className="font-medium">Refresh now</span> to pull the latest.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6 gap-3">
+                      {reels.slice(0, 60).map((r: any) => {
+                        const handle =
+                          r.account?.igUsername || r.account?.username || "account";
+                        return (
+                          <a
+                            key={r.id}
+                            href={r.reelUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={`@${handle} — ${formatNumber(r.currentViews)} views · open on Instagram`}
+                            className="group relative block aspect-[9/16] rounded-lg overflow-hidden bg-gray-900"
+                          >
+                            {/* Fallback icon — shows through until a cached image exists */}
+                            <div className="absolute inset-0 flex items-center justify-center text-gray-600">
+                              <Film className="h-7 w-7" />
+                            </div>
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={`/api/thumb/${r.id}`}
+                              alt=""
+                              loading="lazy"
+                              className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                            />
+                            {/* Stats overlay */}
+                            <div className="absolute inset-x-0 bottom-0 p-2 bg-gradient-to-t from-black/85 via-black/30 to-transparent">
+                              <div className="flex items-center gap-1 text-white text-xs font-semibold leading-none">
+                                <Play className="h-3 w-3 fill-white" />
+                                {formatNumber(r.currentViews)}
+                              </div>
+                              <div className="mt-1 text-[10px] text-gray-200 truncate">
+                                @{handle}
+                              </div>
+                            </div>
+                            {/* Open-on-Instagram affordance */}
+                            <div className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <div className="p-1 rounded-md bg-black/50 text-white">
+                                <ExternalLink className="h-3 w-3" />
+                              </div>
+                            </div>
+                          </a>
+                        );
+                      })}
+                    </div>
+                    {reels.length > 60 && (
+                      <p className="text-center text-xs text-gray-400 mt-4">
+                        Showing the 60 most recent of {reels.length} reels in this range.
+                      </p>
+                    )}
+                  </>
+                )}
+              </CardContent>
+            </Card>
           </>
         ) : (
           <div className="text-center py-12 text-gray-500">
