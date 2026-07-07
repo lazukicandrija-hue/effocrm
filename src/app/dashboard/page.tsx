@@ -63,6 +63,8 @@ export default function DashboardPage() {
   const [reels, setReels] = useState<any[]>([]);
   const [reelsLoading, setReelsLoading] = useState(true);
   const [reelWindow, setReelWindow] = useState("7d"); // 24h | 7d | 30d
+  const [reelAccountId, setReelAccountId] = useState("all"); // filter feed to one account
+  const [accountsList, setAccountsList] = useState<any[]>([]); // options for the picker
 
   const fetchStats = useCallback(async () => {
     try {
@@ -138,6 +140,7 @@ export default function DashboardPage() {
         modelId,
         postedWithin: reelWindow,
       });
+      if (reelAccountId !== "all") params.set("accountId", reelAccountId);
       const res = await fetch(`/api/reels?${params}`);
       const data = await res.json();
       setReels(Array.isArray(data.reels) ? data.reels : []);
@@ -146,11 +149,23 @@ export default function DashboardPage() {
     } finally {
       setReelsLoading(false);
     }
-  }, [modelId, reelWindow]);
+  }, [modelId, reelWindow, reelAccountId]);
+
+  // Account options for the reels-feed picker (lightweight; owned accounts only).
+  const fetchAccountsList = useCallback(async () => {
+    try {
+      const res = await fetch("/api/accounts/options");
+      const data = await res.json();
+      setAccountsList(Array.isArray(data.accounts) ? data.accounts : []);
+    } catch (error) {
+      console.error("Failed to fetch account options:", error);
+    }
+  }, []);
 
   useEffect(() => {
     fetchModels();
-  }, [fetchModels]);
+    fetchAccountsList();
+  }, [fetchModels, fetchAccountsList]);
 
   useEffect(() => {
     setLoading(true);
@@ -216,6 +231,11 @@ export default function DashboardPage() {
     </Card>
   );
 
+  // Accounts shown in the feed picker — scoped to the selected model.
+  const accountOptions = accountsList.filter(
+    (a) => modelId === "all" || a.modelId === modelId
+  );
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -247,7 +267,13 @@ export default function DashboardPage() {
             </div>
 
             {/* Model filter */}
-            <Select value={modelId} onValueChange={setModelId}>
+            <Select
+              value={modelId}
+              onValueChange={(v) => {
+                setModelId(v);
+                setReelAccountId("all"); // avoid a stale account from another model
+              }}
+            >
               <SelectTrigger className="w-[160px] bg-white">
                 <SelectValue placeholder="All Models" />
               </SelectTrigger>
@@ -440,25 +466,41 @@ export default function DashboardPage() {
                       Newest reels from every account — click a thumbnail to open it on Instagram
                     </p>
                   </div>
-                  {/* Time-window toggle */}
-                  <div className="flex bg-white rounded-lg border border-gray-200 p-1">
-                    {[
-                      { k: "24h", label: "24h" },
-                      { k: "7d", label: "7 days" },
-                      { k: "30d", label: "30 days" },
-                    ].map((w) => (
-                      <button
-                        key={w.k}
-                        onClick={() => setReelWindow(w.k)}
-                        className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-                          reelWindow === w.k
-                            ? "bg-[#0a0a0a] text-[#f5e6c8]"
-                            : "text-gray-500 hover:text-gray-700"
-                        }`}
-                      >
-                        {w.label}
-                      </button>
-                    ))}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {/* Account picker — filter the feed to a single account */}
+                    <Select value={reelAccountId} onValueChange={setReelAccountId}>
+                      <SelectTrigger className="w-[180px] h-9 bg-white">
+                        <SelectValue placeholder="All accounts" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All accounts</SelectItem>
+                        {accountOptions.map((a: any) => (
+                          <SelectItem key={a.id} value={a.id}>
+                            @{a.igUsername || a.username}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {/* Time-window toggle */}
+                    <div className="flex bg-white rounded-lg border border-gray-200 p-1">
+                      {[
+                        { k: "24h", label: "24h" },
+                        { k: "7d", label: "7 days" },
+                        { k: "30d", label: "30 days" },
+                      ].map((w) => (
+                        <button
+                          key={w.k}
+                          onClick={() => setReelWindow(w.k)}
+                          className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                            reelWindow === w.k
+                              ? "bg-[#0a0a0a] text-[#f5e6c8]"
+                              : "text-gray-500 hover:text-gray-700"
+                          }`}
+                        >
+                          {w.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </CardHeader>
