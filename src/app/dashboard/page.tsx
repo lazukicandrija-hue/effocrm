@@ -67,6 +67,7 @@ export default function DashboardPage() {
   const [reelWindow, setReelWindow] = useState("7d"); // 24h | 7d | 30d
   const [reelAccountId, setReelAccountId] = useState("all"); // filter feed to one account
   const [reelNiche, setReelNiche] = useState("all"); // filter feed by niche
+  const [reelSort, setReelSort] = useState("publishedAt"); // publishedAt | currentViews | currentLikes
   const [accountsList, setAccountsList] = useState<any[]>([]); // options for the picker
 
   const fetchStats = useCallback(async () => {
@@ -138,7 +139,7 @@ export default function DashboardPage() {
   const fetchReels = useCallback(async () => {
     try {
       const params = new URLSearchParams({
-        sortBy: "publishedAt",
+        sortBy: reelSort,
         sortOrder: "desc",
         modelId,
         postedWithin: reelWindow,
@@ -153,7 +154,7 @@ export default function DashboardPage() {
     } finally {
       setReelsLoading(false);
     }
-  }, [modelId, reelWindow, reelAccountId, reelNiche]);
+  }, [modelId, reelWindow, reelAccountId, reelNiche, reelSort]);
 
   // Account options for the reels-feed picker (lightweight; owned accounts only).
   const fetchAccountsList = useCallback(async () => {
@@ -507,12 +508,24 @@ export default function DashboardPage() {
                         ))}
                       </SelectContent>
                     </Select>
+                    {/* Sort */}
+                    <Select value={reelSort} onValueChange={setReelSort}>
+                      <SelectTrigger className="w-[140px] h-9 bg-white">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="publishedAt">Newest</SelectItem>
+                        <SelectItem value="currentViews">Most views</SelectItem>
+                        <SelectItem value="currentLikes">Most likes</SelectItem>
+                      </SelectContent>
+                    </Select>
                     {/* Time-window toggle */}
                     <div className="flex bg-white rounded-lg border border-gray-200 p-1">
                       {[
                         { k: "24h", label: "24h" },
                         { k: "7d", label: "7 days" },
                         { k: "30d", label: "30 days" },
+                        { k: "all", label: "All" },
                       ].map((w) => (
                         <button
                           key={w.k}
@@ -597,7 +610,7 @@ export default function DashboardPage() {
                     </div>
                     {reels.length > 60 && (
                       <p className="text-center text-xs text-gray-400 mt-4">
-                        Showing the 60 most recent of {reels.length} reels in this range.
+                        Showing 60 of {reels.length} reels — narrow the filters to see the rest.
                       </p>
                     )}
                   </>
