@@ -14,7 +14,7 @@ export async function GET() {
   try {
     const accounts = await prisma.account.findMany({
       where: { ownership: { not: "COMPETITOR" }, igUsername: { not: null } },
-      select: { id: true, username: true, igUsername: true, modelId: true },
+      select: { id: true, username: true, igUsername: true, modelId: true, niche: true },
       orderBy: { username: "asc" },
     });
     return NextResponse.json({ accounts });

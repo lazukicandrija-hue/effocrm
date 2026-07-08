@@ -16,6 +16,7 @@ export async function GET(req: NextRequest) {
     const accountId = searchParams.get("accountId");
     const igUsername = searchParams.get("igUsername");
     const modelId = searchParams.get("modelId");
+    const niche = searchParams.get("niche");
     const period = searchParams.get("period") || "7d";
     const sortBy = searchParams.get("sortBy") || "currentViews";
     const sortOrder = searchParams.get("sortOrder") || "desc";
@@ -26,6 +27,7 @@ export async function GET(req: NextRequest) {
     if (accountId) accountFilter.accountId = accountId;
     if (igUsername) accountFilter.account = { ...accountFilter.account, igUsername: igUsername.toLowerCase() };
     if (modelId && modelId !== "all") accountFilter.account = { ...accountFilter.account, modelId };
+    if (niche && niche !== "all") accountFilter.account = { ...accountFilter.account, niche: { has: niche } };
 
     // Filter by when the reel was POSTED (publishedAt) — powers the "last 24h" view.
     const reelFilter: any = { ...accountFilter };

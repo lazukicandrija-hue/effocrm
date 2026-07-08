@@ -52,6 +52,8 @@ interface DashboardStats {
   statusDistribution: any[];
 }
 
+const FIXED_NICHES = ["Golf", "Talking", "Omegle", "Podcast", "Dancing", "Motion Control"];
+
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -64,6 +66,7 @@ export default function DashboardPage() {
   const [reelsLoading, setReelsLoading] = useState(true);
   const [reelWindow, setReelWindow] = useState("7d"); // 24h | 7d | 30d
   const [reelAccountId, setReelAccountId] = useState("all"); // filter feed to one account
+  const [reelNiche, setReelNiche] = useState("all"); // filter feed by niche
   const [accountsList, setAccountsList] = useState<any[]>([]); // options for the picker
 
   const fetchStats = useCallback(async () => {
@@ -141,6 +144,7 @@ export default function DashboardPage() {
         postedWithin: reelWindow,
       });
       if (reelAccountId !== "all") params.set("accountId", reelAccountId);
+      if (reelNiche !== "all") params.set("niche", reelNiche);
       const res = await fetch(`/api/reels?${params}`);
       const data = await res.json();
       setReels(Array.isArray(data.reels) ? data.reels : []);
@@ -149,7 +153,7 @@ export default function DashboardPage() {
     } finally {
       setReelsLoading(false);
     }
-  }, [modelId, reelWindow, reelAccountId]);
+  }, [modelId, reelWindow, reelAccountId, reelNiche]);
 
   // Account options for the reels-feed picker (lightweight; owned accounts only).
   const fetchAccountsList = useCallback(async () => {
@@ -235,6 +239,13 @@ export default function DashboardPage() {
   const accountOptions = accountsList.filter(
     (a) => modelId === "all" || a.modelId === modelId
   );
+  // Niche options — the standard set plus any custom niches on the shown accounts.
+  const nicheOptions = Array.from(
+    new Set([
+      ...FIXED_NICHES,
+      ...accountOptions.flatMap((a: any) => (Array.isArray(a.niche) ? a.niche : [])),
+    ])
+  );
 
   return (
     <DashboardLayout>
@@ -272,6 +283,7 @@ export default function DashboardPage() {
               onValueChange={(v) => {
                 setModelId(v);
                 setReelAccountId("all"); // avoid a stale account from another model
+                setReelNiche("all");
               }}
             >
               <SelectTrigger className="w-[160px] bg-white">
@@ -477,6 +489,20 @@ export default function DashboardPage() {
                         {accountOptions.map((a: any) => (
                           <SelectItem key={a.id} value={a.id}>
                             @{a.igUsername || a.username}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {/* Niche picker — filter the feed by the account's niche */}
+                    <Select value={reelNiche} onValueChange={setReelNiche}>
+                      <SelectTrigger className="w-[150px] h-9 bg-white">
+                        <SelectValue placeholder="All niches" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All niches</SelectItem>
+                        {nicheOptions.map((n: string) => (
+                          <SelectItem key={n} value={n}>
+                            {n}
                           </SelectItem>
                         ))}
                       </SelectContent>
