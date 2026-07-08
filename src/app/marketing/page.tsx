@@ -774,20 +774,16 @@ export default function MarketingPage() {
             ))}
           </div>
         ) : items.length === 0 ? (
-          <Card>
-            <CardContent className="py-16 text-center text-gray-500">
-              <Lightbulb className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-              {hasFilters ? (
+          // Only show feedback while actively filtering/searching; an empty view
+          // (e.g. a folder with no unfiled reels) shows nothing rather than a box.
+          hasFilters ? (
+            <Card>
+              <CardContent className="py-16 text-center text-gray-500">
+                <Lightbulb className="h-12 w-12 mx-auto mb-4 text-gray-300" />
                 <p>No inspiration matches your filters.</p>
-              ) : (
-                <p>
-                  No saved inspiration yet. Click{" "}
-                  <span className="font-medium text-gray-700">Add Inspiration</span> to
-                  save your first reel.
-                </p>
-              )}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          ) : null
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
             {items.map((item, idx) => {
