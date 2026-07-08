@@ -42,6 +42,9 @@ export default function CompetitorsPage() {
   const [adding, setAdding] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  const [addingNiche, setAddingNiche] = useState(false);
+  const [customNiche, setCustomNiche] = useState("");
+  const [extraNiches, setExtraNiches] = useState<string[]>([]);
 
   async function load() {
     setLoading(true);
@@ -135,7 +138,18 @@ export default function CompetitorsPage() {
   const toggleNiche = (n: string) =>
     setPicked((p) => (p.includes(n) ? p.filter((x) => x !== n) : [...p, n]));
 
+  const addCustomNiche = () => {
+    const n = customNiche.trim();
+    if (!n) return;
+    setExtraNiches((p) => (p.includes(n) ? p : [...p, n]));
+    setPicked((p) => (p.includes(n) ? p : [...p, n]));
+    setCustomNiche("");
+    setAddingNiche(false);
+  };
+
   const nichesInUse = Array.from(new Set(list.flatMap((c) => c.niche || []))).sort();
+  // Presets + any niche already in use + any just-typed custom one.
+  const nicheOptions = Array.from(new Set([...NICHES, ...nichesInUse, ...extraNiches]));
   const shown = filter === "all" ? list : list.filter((c) => (c.niche || []).includes(filter));
 
   return (
@@ -188,7 +202,7 @@ export default function CompetitorsPage() {
         </div>
         <div className="flex flex-wrap items-center gap-1.5 mt-3">
           <span className="text-xs text-gray-500 mr-1">Niche:</span>
-          {NICHES.map((n) => {
+          {nicheOptions.map((n) => {
             const active = picked.includes(n);
             const col = nicheColor(n);
             return (
@@ -206,6 +220,39 @@ export default function CompetitorsPage() {
               </button>
             );
           })}
+          {addingNiche ? (
+            <span className="inline-flex items-center gap-1">
+              <input
+                autoFocus
+                value={customNiche}
+                onChange={(e) => setCustomNiche(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addCustomNiche();
+                  } else if (e.key === "Escape") {
+                    setAddingNiche(false);
+                    setCustomNiche("");
+                  }
+                }}
+                placeholder="type a niche"
+                className="w-28 bg-white/5 border border-white/10 rounded-full px-2.5 py-1 text-xs text-gray-200 placeholder-gray-500 focus:outline-none focus:border-[#d4a853]/50"
+              />
+              <button
+                onClick={addCustomNiche}
+                className="text-xs text-[#d4a853] hover:underline"
+              >
+                add
+              </button>
+            </span>
+          ) : (
+            <button
+              onClick={() => setAddingNiche(true)}
+              className="text-xs px-2.5 py-1 rounded-full border border-dashed border-white/20 text-gray-400 hover:border-[#d4a853]/50 hover:text-[#d4a853] transition-colors"
+            >
+              + Add
+            </button>
+          )}
         </div>
       </div>
 

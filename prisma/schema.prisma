@@ -139,6 +139,7 @@ model Inspiration {
   niche        String[]          @default([])  // multi-select, reuses Account niches + custom
   notes        String?           @db.Text  // why I like it / why we should recreate it
   issueNote    String?           @db.Text  // when status = ISSUE: what's wrong / needs fixing
+  addedBy      String?           // team member who saved this inspiration
   prompt       String?           @db.Text  // generated Seedance prompt (cached)
   thumbnailData    Bytes?        // cached preview image bytes (via the proxy pipeline)
   thumbnailType    String?       // content-type of the cached preview

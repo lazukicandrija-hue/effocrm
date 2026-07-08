@@ -108,6 +108,7 @@ export async function POST(req: NextRequest) {
         niche,
         notes: body.notes?.trim() || null,
         issueNote: body.issueNote?.trim() || null,
+        addedBy: body.addedBy?.trim() || null,
         status,
         modelId: body.modelId || null,
         folderId: body.folderId || null,

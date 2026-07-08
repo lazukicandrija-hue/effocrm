@@ -41,6 +41,7 @@ export async function PUT(
     if (body.prompt !== undefined) data.prompt = body.prompt || null;
     if (body.issueNote !== undefined)
       data.issueNote = body.issueNote?.trim() || null;
+    if (body.addedBy !== undefined) data.addedBy = body.addedBy?.trim() || null;
     if (Array.isArray(body.niche)) {
       data.niche = body.niche
         .filter((n: any) => typeof n === "string" && n.trim())

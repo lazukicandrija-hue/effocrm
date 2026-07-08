@@ -36,6 +36,7 @@ const statements = [
        "niche" TEXT[] DEFAULT ARRAY[]::TEXT[],
        "notes" TEXT,
        "issueNote" TEXT,
+       "addedBy" TEXT,
        "status" "InspirationStatus" NOT NULL DEFAULT 'IDEA',
        "modelId" TEXT,
        "position" INTEGER NOT NULL DEFAULT 0,
@@ -47,6 +48,10 @@ const statements = [
   [
     "Inspiration.issueNote column",
     `ALTER TABLE "Inspiration" ADD COLUMN IF NOT EXISTS "issueNote" TEXT;`,
+  ],
+  [
+    "Inspiration.addedBy column",
+    `ALTER TABLE "Inspiration" ADD COLUMN IF NOT EXISTS "addedBy" TEXT;`,
   ],
   [
     "Inspiration_modelId_idx",

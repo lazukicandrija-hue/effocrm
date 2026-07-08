@@ -99,6 +99,10 @@ function statusKey(s: string | null | undefined) {
   return "RECREATING";
 }
 
+// Team members who can be credited for saving an inspiration (shared login, so
+// this is chosen manually rather than derived from the session user).
+const TEAM = ["Andreja", "Nele", "Ignjat", "Kris", "Andrija"];
+
 const emptyForm = {
   url: "",
   creator: "",
@@ -109,6 +113,7 @@ const emptyForm = {
   modelId: "",
   notes: "",
   issueNote: "",
+  addedBy: "",
   folderId: "",
 };
 
@@ -332,6 +337,7 @@ export default function MarketingPage() {
       modelId: item.modelId || "",
       notes: item.notes || "",
       issueNote: item.issueNote || "",
+      addedBy: item.addedBy || "",
       folderId: item.folderId || "",
     });
     lastPreviewedUrl.current = item.url || "";
@@ -936,7 +942,17 @@ export default function MarketingPage() {
                       ) : (
                         <span className="text-gray-300">Unassigned</span>
                       )}
-                      <span className="flex-shrink-0">{formatDate(item.createdAt)}</span>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        {item.addedBy && (
+                          <span
+                            className="text-gray-500 truncate max-w-[70px]"
+                            title={`Added by ${item.addedBy}`}
+                          >
+                            {item.addedBy}
+                          </span>
+                        )}
+                        <span>{formatDate(item.createdAt)}</span>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -1067,6 +1083,28 @@ export default function MarketingPage() {
                     {models.map((m: any) => (
                       <SelectItem key={m.id} value={m.id}>
                         {m.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Added by</Label>
+                <Select
+                  value={formData.addedBy || "none"}
+                  onValueChange={(v) =>
+                    setFormData({ ...formData, addedBy: v === "none" ? "" : v })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Who added this?" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Not specified</SelectItem>
+                    {TEAM.map((t) => (
+                      <SelectItem key={t} value={t}>
+                        {t}
                       </SelectItem>
                     ))}
                   </SelectContent>
