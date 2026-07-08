@@ -41,6 +41,8 @@ import {
   ChevronLeft,
   ChevronRight,
   ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
   Check,
   GripVertical,
   RefreshCw,
@@ -373,8 +375,12 @@ export default function AccountsPage() {
       setSortOrder(sortOrder === "asc" ? "desc" : "asc");
     } else {
       setSortBy(field);
-      setSortOrder("desc");
+      // Dates read most naturally oldest→newest; everything else highest-first.
+      setSortOrder(
+        field === "lastPost" || field === "accountCreatedDate" ? "asc" : "desc"
+      );
     }
+    setPage(1);
   };
 
   const manualMode = sortBy === "position";
@@ -576,17 +582,43 @@ export default function AccountsPage() {
     }
   };
 
-  const SortableHead = ({ label, field }: { label: string; field: string }) => (
-    <TableHead
-      className="cursor-pointer select-none hover:text-gray-700 transition-colors"
-      onClick={() => handleSort(field)}
-    >
-      <div className="flex items-center gap-1">
-        {label}
-        <ArrowUpDown className="h-3 w-3" />
-      </div>
-    </TableHead>
-  );
+  const SortableHead = ({
+    label,
+    field,
+    align = "left",
+    className = "",
+  }: {
+    label: string;
+    field: string;
+    align?: "left" | "center" | "right";
+    className?: string;
+  }) => {
+    const active = sortBy === field;
+    return (
+      <TableHead
+        className={`cursor-pointer select-none hover:text-gray-700 transition-colors ${className}`}
+        onClick={() => handleSort(field)}
+      >
+        <div
+          className={
+            "flex items-center gap-1 " +
+            (align === "center" ? "justify-center" : align === "right" ? "justify-end" : "")
+          }
+        >
+          {label}
+          {active ? (
+            sortOrder === "asc" ? (
+              <ArrowUp className="h-3 w-3 text-[#d4a853]" />
+            ) : (
+              <ArrowDown className="h-3 w-3 text-[#d4a853]" />
+            )
+          ) : (
+            <ArrowUpDown className="h-3 w-3 opacity-40" />
+          )}
+        </div>
+      </TableHead>
+    );
+  };
 
   const NicheBadges = ({ niches }: { niches: string[] }) => (
     <div className="flex flex-wrap gap-1">
@@ -722,15 +754,15 @@ export default function AccountsPage() {
                   <TableHead className="w-8"></TableHead>
                   <SortableHead label="Username" field="username" />
                   <TableHead>Niche</TableHead>
-                  <TableHead>Decision</TableHead>
-                  <TableHead>Status</TableHead>
+                  <SortableHead label="Decision" field="decision" />
+                  <SortableHead label="Status" field="status" />
                   <SortableHead label="Followers" field="followers" />
-                  <TableHead>Views Today</TableHead>
-                  <TableHead>Total Views</TableHead>
-                  <TableHead className="text-center">FB</TableHead>
-                  <TableHead className="text-center">Bio Link</TableHead>
-                  <TableHead>Last Post</TableHead>
-                  <TableHead>Acc. Created</TableHead>
+                  <SortableHead label="Views Today" field="viewsToday" />
+                  <SortableHead label="Total Views" field="totalViews" />
+                  <SortableHead label="FB" field="hasFacebook" align="center" className="text-center" />
+                  <SortableHead label="Bio Link" field="linkInBio" align="center" className="text-center" />
+                  <SortableHead label="Last Post" field="lastPost" />
+                  <SortableHead label="Acc. Created" field="accountCreatedDate" />
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>

@@ -39,68 +39,90 @@ export async function GET(req: NextRequest) {
       where.status = status;
     }
 
+    // Whitelist sortable fields so a bad ?sortBy never 500s. viewsToday and
+    // totalViews are aggregated (not columns), so they're sorted in memory.
+    const COMPUTED = new Set(["viewsToday", "totalViews"]);
+    const REAL = new Set([
+      "position", "username", "followers", "status", "decision",
+      "hasFacebook", "linkInBio", "lastPost", "accountCreatedDate", "dateCreated",
+    ]);
+    const sortField = COMPUTED.has(sortBy) || REAL.has(sortBy) ? sortBy : "position";
+    const dir = sortOrder === "asc" ? "asc" : "desc";
+
+    const include: any = {
+      model: { select: { name: true } },
+      dailyStats: { orderBy: { date: "desc" }, take: 1 },
+    };
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Attach aggregated view counts (all-time + today) to a set of accounts using
+    // two groupBy queries — never N+1.
+    const attachViews = async (accts: any[]) => {
+      const ids = accts.map((a) => a.id);
+      const [totalsAgg, todayAgg] = await Promise.all([
+        prisma.dailyStat.groupBy({
+          by: ["accountId"],
+          where: { accountId: { in: ids } },
+          _sum: { instaViews: true, fbViews: true },
+        }),
+        prisma.dailyStat.groupBy({
+          by: ["accountId"],
+          where: { accountId: { in: ids }, date: { gte: today } },
+          _sum: { instaViews: true, fbViews: true },
+        }),
+      ]);
+      const totalsMap = new Map(
+        totalsAgg.map((t) => [t.accountId, { insta: t._sum.instaViews || 0, fb: t._sum.fbViews || 0 }])
+      );
+      const todayMap = new Map(
+        todayAgg.map((t) => [t.accountId, { insta: t._sum.instaViews || 0, fb: t._sum.fbViews || 0 }])
+      );
+      return accts.map((account) => {
+        const tot = totalsMap.get(account.id) || { insta: 0, fb: 0 };
+        const tod = todayMap.get(account.id) || { insta: 0, fb: 0 };
+        return {
+          ...account,
+          totalInstaViews: tot.insta,
+          totalFbViews: tot.fb,
+          totalViews: tot.insta + tot.fb,
+          viewsToday: tod.insta + tod.fb,
+          instaViewsToday: tod.insta,
+          fbViewsToday: tod.fb,
+        };
+      });
+    };
+
+    if (COMPUTED.has(sortField)) {
+      // Sorting by an aggregated metric: compute for ALL matching accounts, sort,
+      // then paginate in memory (account counts are small).
+      const all = await prisma.account.findMany({ where, include });
+      const withViews = await attachViews(all);
+      withViews.sort((a: any, b: any) =>
+        dir === "asc" ? a[sortField] - b[sortField] : b[sortField] - a[sortField]
+      );
+      const start = (page - 1) * limit;
+      return NextResponse.json({
+        accounts: withViews.slice(start, start + limit),
+        total: withViews.length,
+        page,
+        totalPages: Math.ceil(withViews.length / limit),
+      });
+    }
+
+    // Real column: let the DB sort + paginate, then aggregate just the page.
     const [accounts, total] = await Promise.all([
       prisma.account.findMany({
         where,
-        include: {
-          model: { select: { name: true } },
-          dailyStats: {
-            orderBy: { date: "desc" },
-            take: 1,
-          },
-        },
-        orderBy: { [sortBy]: sortOrder },
+        include,
+        orderBy: { [sortField]: dir },
         skip: (page - 1) * limit,
         take: limit,
       }),
       prisma.account.count({ where }),
     ]);
-
-    // Aggregate views per account in TWO queries (not N+1) — avoids firing dozens
-    // of concurrent queries that can exhaust the DB connection pool.
-    const accountIds = accounts.map((a) => a.id);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const [totalsAgg, todayAgg] = await Promise.all([
-      prisma.dailyStat.groupBy({
-        by: ["accountId"],
-        where: { accountId: { in: accountIds } },
-        _sum: { instaViews: true, fbViews: true },
-      }),
-      prisma.dailyStat.groupBy({
-        by: ["accountId"],
-        where: { accountId: { in: accountIds }, date: { gte: today } },
-        _sum: { instaViews: true, fbViews: true },
-      }),
-    ]);
-
-    const totalsMap = new Map(
-      totalsAgg.map((t) => [
-        t.accountId,
-        { insta: t._sum.instaViews || 0, fb: t._sum.fbViews || 0 },
-      ])
-    );
-    const todayMap = new Map(
-      todayAgg.map((t) => [
-        t.accountId,
-        { insta: t._sum.instaViews || 0, fb: t._sum.fbViews || 0 },
-      ])
-    );
-
-    const accountsWithViews = accounts.map((account) => {
-      const tot = totalsMap.get(account.id) || { insta: 0, fb: 0 };
-      const tod = todayMap.get(account.id) || { insta: 0, fb: 0 };
-      return {
-        ...account,
-        totalInstaViews: tot.insta,
-        totalFbViews: tot.fb,
-        totalViews: tot.insta + tot.fb,
-        viewsToday: tod.insta + tod.fb,
-        instaViewsToday: tod.insta,
-        fbViewsToday: tod.fb,
-      };
-    });
+    const accountsWithViews = await attachViews(accounts);
 
     return NextResponse.json({
       accounts: accountsWithViews,
