@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import DashboardLayout from "@/components/layout/dashboard-layout";
-import { Loader2, Upload, Download, RotateCcw, Film, AlertTriangle } from "lucide-react";
+import { Loader2, Upload, Download, RotateCcw, Film, AlertTriangle, Copy, Check } from "lucide-react";
 
 // Grab the opening frame of a video File entirely in the browser (instant, private).
 // Seeks a hair past 0 so a real decoded frame is guaranteed across browsers.
@@ -64,6 +64,7 @@ export default function FirstFramePage() {
   const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState("");
   const [resultUrl, setResultUrl] = useState("");
+  const [copied, setCopied] = useState(false);
   const resultBlob = useRef<Blob | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -156,6 +157,29 @@ export default function FirstFramePage() {
     URL.revokeObjectURL(a.href);
   };
 
+  // Copy the frame to the clipboard. Clipboard image-write needs PNG, so re-encode.
+  const copyImage = async () => {
+    if (!resultBlob.current) return;
+    setError("");
+    try {
+      const bitmap = await createImageBitmap(resultBlob.current);
+      const canvas = document.createElement("canvas");
+      canvas.width = bitmap.width;
+      canvas.height = bitmap.height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("no context");
+      ctx.drawImage(bitmap, 0, 0);
+      const png: Blob = await new Promise((resolve, rej) =>
+        canvas.toBlob((b) => (b ? resolve(b) : rej(new Error("encode failed"))), "image/png")
+      );
+      await navigator.clipboard.write([new ClipboardItem({ "image/png": png })]);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      setError("Couldn't copy the image — use Download instead.");
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="max-w-2xl mx-auto">
@@ -182,12 +206,20 @@ export default function FirstFramePage() {
                 <Download className="h-4 w-4" /> Download
               </button>
               <button
+                onClick={copyImage}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium border border-white/10 bg-white/5 text-gray-200 hover:bg-white/10 transition-colors"
+              >
+                {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
+                {copied ? "Copied!" : "Copy image"}
+              </button>
+              <button
                 onClick={reset}
                 className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium border border-white/10 bg-white/5 text-gray-200 hover:bg-white/10 transition-colors"
               >
                 <RotateCcw className="h-4 w-4" /> Do another
               </button>
             </div>
+            {error && <p className="text-center text-xs text-red-400">{error}</p>}
           </div>
         ) : (
           <div className="rounded-xl border border-white/5 bg-white/[0.02] p-5 space-y-5">
