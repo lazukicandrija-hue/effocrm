@@ -19,7 +19,7 @@ import {
   Lightbulb,
   TrendingUp,
   Swords,
-  Wand2,
+  Frame,
   ThumbsDown,
 } from "lucide-react";
 
@@ -28,7 +28,7 @@ const navigation = [
   { name: "Accounts", href: "/accounts", icon: Camera },
   { name: "Reels Analytics", href: "/reels", icon: Film },
   { name: "What's Working", href: "/whats-working", icon: TrendingUp },
-  { name: "Prompter", href: "/prompter", icon: Wand2 },
+  { name: "First Frame", href: "/prompter", icon: Frame },
   { name: "Competitors", href: "/competitors", icon: Swords },
   { name: "Marketing", href: "/marketing", icon: Lightbulb },
   { name: "Bad Outputs", href: "/bad-outputs", icon: ThumbsDown },
