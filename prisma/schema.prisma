@@ -176,6 +176,24 @@ model Folder {
   @@index([position])
 }
 
+// A reel our VA made that turned out bad — logged so the team can learn from it.
+// The video file lives in DigitalOcean Spaces; we keep only its object key here
+// (the small Postgres instance can't hold video bytes).
+model BadOutput {
+  id        String   @id @default(cuid())
+  videoKey  String              // Spaces object key of the uploaded reel
+  aiUsed    String?             // which AI tool generated it
+  niche     String[] @default([])
+  issue     String?             // short label of what went wrong
+  reason    String?  @db.Text   // why it's bad (explanation)
+  notes     String?  @db.Text   // specific notes
+  addedBy   String?             // team member who logged it
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([createdAt])
+}
+
 // ============================================
 // INSTAGRAM SCRAPING MODELS
 // ============================================

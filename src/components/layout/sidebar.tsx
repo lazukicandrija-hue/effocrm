@@ -20,6 +20,7 @@ import {
   TrendingUp,
   Swords,
   Wand2,
+  ThumbsDown,
 } from "lucide-react";
 
 const navigation = [
@@ -30,6 +31,7 @@ const navigation = [
   { name: "Prompter", href: "/prompter", icon: Wand2 },
   { name: "Competitors", href: "/competitors", icon: Swords },
   { name: "Marketing", href: "/marketing", icon: Lightbulb },
+  { name: "Bad Outputs", href: "/bad-outputs", icon: ThumbsDown },
   { name: "Models", href: "/models", icon: UserCircle },
   { name: "Team", href: "/team", icon: UsersRound },
   { name: "Settings", href: "/settings", icon: Settings },

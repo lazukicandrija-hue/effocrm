@@ -76,6 +76,26 @@ const statements = [
      END $$;`,
   ],
   [
+    "BadOutput table",
+    `CREATE TABLE IF NOT EXISTS "BadOutput" (
+       "id" TEXT NOT NULL,
+       "videoKey" TEXT NOT NULL,
+       "aiUsed" TEXT,
+       "niche" TEXT[] DEFAULT ARRAY[]::TEXT[],
+       "issue" TEXT,
+       "reason" TEXT,
+       "notes" TEXT,
+       "addedBy" TEXT,
+       "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+       "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+       CONSTRAINT "BadOutput_pkey" PRIMARY KEY ("id")
+     );`,
+  ],
+  [
+    "BadOutput_createdAt_idx",
+    `CREATE INDEX IF NOT EXISTS "BadOutput_createdAt_idx" ON "BadOutput"("createdAt");`,
+  ],
+  [
     "ScraperControl table",
     `CREATE TABLE IF NOT EXISTS "ScraperControl" (
        "id" TEXT NOT NULL,
