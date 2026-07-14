@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
 
     // Whitelist sortable fields so a bad ?sortBy never 500s. viewsToday and
     // totalViews are aggregated (not columns), so they're sorted in memory.
-    const COMPUTED = new Set(["viewsToday", "totalViews"]);
+    const COMPUTED = new Set(["viewsToday", "totalViews", "views24h"]);
     const REAL = new Set([
       "position", "username", "followers", "status", "decision",
       "hasFacebook", "linkInBio", "lastPost", "accountCreatedDate", "dateCreated",
@@ -54,14 +54,17 @@ export async function GET(req: NextRequest) {
       dailyStats: { orderBy: { date: "desc" }, take: 1 },
     };
 
+    const now = new Date();
+    const since24h = new Date(now.getTime() - 24 * 3600 * 1000);
+    const since26h = new Date(now.getTime() - 26 * 3600 * 1000);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // Attach aggregated view counts (all-time + today) to a set of accounts using
-    // two groupBy queries — never N+1.
+    // Attach view counts to a set of accounts: all-time + today (from DailyStat)
+    // plus a rolling last-24h reel-view gain (from hourly ReelSnapshots).
     const attachViews = async (accts: any[]) => {
       const ids = accts.map((a) => a.id);
-      const [totalsAgg, todayAgg] = await Promise.all([
+      const [totalsAgg, todayAgg, reels] = await Promise.all([
         prisma.dailyStat.groupBy({
           by: ["accountId"],
           where: { accountId: { in: ids } },
@@ -72,7 +75,39 @@ export async function GET(req: NextRequest) {
           where: { accountId: { in: ids }, date: { gte: today } },
           _sum: { instaViews: true, fbViews: true },
         }),
+        prisma.reel.findMany({
+          where: { accountId: { in: ids } },
+          select: { id: true, accountId: true, currentViews: true },
+        }),
       ]);
+
+      // Rolling last-24h views per account: for each reel, currentViews minus its
+      // count ~24h ago (last snapshot at/before 24h ago, else earliest in a 26h
+      // window). Mirrors the dashboard's 24h number.
+      const reelIds = reels.map((r) => r.id);
+      const snaps = reelIds.length
+        ? await prisma.reelSnapshot.findMany({
+            where: { reelId: { in: reelIds }, scrapedAt: { gte: since26h } },
+            select: { reelId: true, views: true, scrapedAt: true },
+            orderBy: { scrapedAt: "asc" },
+          })
+        : [];
+      const byReel = new Map<string, { views: number; scrapedAt: Date }[]>();
+      for (const s of snaps) {
+        const arr = byReel.get(s.reelId) || [];
+        arr.push(s);
+        byReel.set(s.reelId, arr);
+      }
+      const v24 = new Map<string, number>();
+      for (const r of reels) {
+        const list = byReel.get(r.id);
+        if (!list || !list.length) continue;
+        let baseline = list[0];
+        for (const s of list) if (s.scrapedAt <= since24h) baseline = s;
+        const delta = Math.max(0, r.currentViews - baseline.views);
+        if (delta) v24.set(r.accountId, (v24.get(r.accountId) || 0) + delta);
+      }
+
       const totalsMap = new Map(
         totalsAgg.map((t) => [t.accountId, { insta: t._sum.instaViews || 0, fb: t._sum.fbViews || 0 }])
       );
@@ -90,6 +125,7 @@ export async function GET(req: NextRequest) {
           viewsToday: tod.insta + tod.fb,
           instaViewsToday: tod.insta,
           fbViewsToday: tod.fb,
+          views24h: v24.get(account.id) || 0,
         };
       });
     };

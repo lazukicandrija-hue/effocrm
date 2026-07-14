@@ -892,6 +892,7 @@ export default function AccountsPage() {
                   <SortableHead label="Followers" field="followers" />
                   <SortableHead label="Views Today" field="viewsToday" />
                   <SortableHead label="Total Views" field="totalViews" />
+                  <SortableHead label="24h Views" field="views24h" />
                   <SortableHead label="Acc. Created" field="accountCreatedDate" />
                   <TableHead>Notes</TableHead>
                   <SortableHead label="FB" field="hasFacebook" align="center" className="text-center" />
@@ -903,7 +904,7 @@ export default function AccountsPage() {
                 {loading ? (
                   [...Array(5)].map((_, i) => (
                     <TableRow key={i}>
-                      {[...Array(13)].map((_, j) => (
+                      {[...Array(14)].map((_, j) => (
                         <TableCell key={j}>
                           <div className="h-4 bg-gray-200 rounded animate-pulse w-16" />
                         </TableCell>
@@ -912,7 +913,7 @@ export default function AccountsPage() {
                   ))
                 ) : accounts.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={13} className="text-center py-12 text-gray-500">
+                    <TableCell colSpan={14} className="text-center py-12 text-gray-500">
                       No accounts found. Add your first account to get started.
                     </TableCell>
                   </TableRow>
@@ -996,6 +997,9 @@ export default function AccountsPage() {
                       </TableCell>
                       <TableCell className="font-medium">
                         {formatNumber(account.totalViews)}
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        {formatNumber(account.views24h)}
                       </TableCell>
                       <TableCell className="text-sm whitespace-nowrap">
                         <DateCell
