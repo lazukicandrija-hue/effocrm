@@ -237,6 +237,118 @@ function InlineEnumCell({
   );
 }
 
+// Click a Notes cell to edit it inline in a small popover (portaled to <body> so
+// it's never clipped by the scrolling table). Saves on close if the text changed.
+function NotesCell({
+  value,
+  onSave,
+}: {
+  value: string | null;
+  onSave: (v: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const [draft, setDraft] = useState(value || "");
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
+
+  const openEditor = () => {
+    setDraft(value || "");
+    if (btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect();
+      const left = Math.min(Math.max(8, r.left), window.innerWidth - 292);
+      setPos({ top: r.bottom + 4, left });
+    }
+    setOpen(true);
+  };
+  const commit = () => {
+    setOpen(false);
+    if ((value || "") !== draft.trim()) onSave(draft.trim());
+  };
+  const cancel = () => {
+    setOpen(false);
+    setDraft(value || "");
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (
+        btnRef.current &&
+        !btnRef.current.contains(e.target as Node) &&
+        popRef.current &&
+        !popRef.current.contains(e.target as Node)
+      )
+        commit();
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  });
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        title={value || "Add a note"}
+        onClick={(e) => {
+          e.stopPropagation();
+          openEditor();
+        }}
+        className="text-left w-full max-w-[220px] rounded-md px-2 py-1 hover:bg-gray-100 transition-colors"
+      >
+        {value ? (
+          <span className="block text-xs text-gray-600 line-clamp-2 leading-snug">{value}</span>
+        ) : (
+          <span className="text-xs text-gray-300">+ note</span>
+        )}
+      </button>
+      {open &&
+        pos &&
+        createPortal(
+          <div
+            ref={popRef}
+            style={{ position: "fixed", top: pos.top, left: pos.left, zIndex: 50, width: 280 }}
+            className="bg-white rounded-lg shadow-lg border border-gray-200 p-2"
+          >
+            <textarea
+              autoFocus
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") cancel();
+                else if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) commit();
+              }}
+              placeholder="What to change for the best results on this account…"
+              rows={4}
+              className="w-full text-sm text-gray-800 border border-gray-200 rounded-md p-2 resize-y focus:outline-none focus:border-[#d4a853] placeholder-gray-400"
+            />
+            <div className="flex items-center justify-between mt-1.5">
+              <span className="text-[10px] text-gray-400">⌘/Ctrl+Enter to save</span>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={cancel}
+                  className="text-xs px-2.5 py-1 rounded-md text-gray-500 hover:bg-gray-100"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={commit}
+                  className="text-xs px-2.5 py-1 rounded-md bg-[#d4a853] text-black font-medium hover:bg-[#e0b863]"
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+    </>
+  );
+}
+
 export default function AccountsPage() {
   const [accounts, setAccounts] = useState<any[]>([]);
   const [models, setModels] = useState<any[]>([]);
@@ -582,6 +694,27 @@ export default function AccountsPage() {
     }
   };
 
+  // Inline notes editor — save a per-account note (what to change for best results).
+  const setAccountNotes = async (account: any, value: string) => {
+    const prevVal = account.notes;
+    setAccounts((prev) =>
+      prev.map((a) => (a.id === account.id ? { ...a, notes: value } : a))
+    );
+    try {
+      const res = await fetch(`/api/accounts/${account.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notes: value }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      setAccounts((prev) =>
+        prev.map((a) => (a.id === account.id ? { ...a, notes: prevVal } : a))
+      );
+      alert("Failed to save note — please try again.");
+    }
+  };
+
   const SortableHead = ({
     label,
     field,
@@ -763,6 +896,7 @@ export default function AccountsPage() {
                   <SortableHead label="Bio Link" field="linkInBio" align="center" className="text-center" />
                   <SortableHead label="Last Post" field="lastPost" />
                   <SortableHead label="Acc. Created" field="accountCreatedDate" />
+                  <TableHead>Notes</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -770,7 +904,7 @@ export default function AccountsPage() {
                 {loading ? (
                   [...Array(5)].map((_, i) => (
                     <TableRow key={i}>
-                      {[...Array(13)].map((_, j) => (
+                      {[...Array(14)].map((_, j) => (
                         <TableCell key={j}>
                           <div className="h-4 bg-gray-200 rounded animate-pulse w-16" />
                         </TableCell>
@@ -779,7 +913,7 @@ export default function AccountsPage() {
                   ))
                 ) : accounts.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={13} className="text-center py-12 text-gray-500">
+                    <TableCell colSpan={14} className="text-center py-12 text-gray-500">
                       No accounts found. Add your first account to get started.
                     </TableCell>
                   </TableRow>
@@ -908,6 +1042,12 @@ export default function AccountsPage() {
                         <DateCell
                           value={account.accountCreatedDate}
                           onPick={(v) => setAccountDate(account, "accountCreatedDate", v)}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <NotesCell
+                          value={account.notes}
+                          onSave={(v) => setAccountNotes(account, v)}
                         />
                       </TableCell>
                       <TableCell>
