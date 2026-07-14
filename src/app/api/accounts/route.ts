@@ -258,6 +258,11 @@ export async function POST(req: NextRequest) {
       include: { model: { select: { name: true } } },
     });
 
+    // Re-adding an account clears any tombstone, so the scraper can track it again.
+    await prisma.deletedAccount
+      .deleteMany({ where: { OR: [{ username: cleanUsername }, { igUsername: account.igUsername }] } })
+      .catch(() => {});
+
     return NextResponse.json(account, { status: 201 });
   } catch (error) {
     console.error("Account create error:", error);

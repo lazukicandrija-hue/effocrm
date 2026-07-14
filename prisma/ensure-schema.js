@@ -147,6 +147,20 @@ const statements = [
      );`,
   ],
   [
+    "DeletedAccount table",
+    `CREATE TABLE IF NOT EXISTS "DeletedAccount" (
+       "id" TEXT NOT NULL,
+       "igUsername" TEXT,
+       "username" TEXT,
+       "deletedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+       CONSTRAINT "DeletedAccount_pkey" PRIMARY KEY ("id")
+     );`,
+  ],
+  [
+    "DeletedAccount_igUsername_idx",
+    `CREATE INDEX IF NOT EXISTS "DeletedAccount_igUsername_idx" ON "DeletedAccount"("igUsername");`,
+  ],
+  [
     "ScraperControl table",
     `CREATE TABLE IF NOT EXISTS "ScraperControl" (
        "id" TEXT NOT NULL,

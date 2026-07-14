@@ -126,7 +126,17 @@ export async function DELETE(
   }
 
   try {
+    // Remember what we deleted so the scraper's auto-linker can't recreate it.
+    const acc = await prisma.account.findUnique({
+      where: { id: params.id },
+      select: { igUsername: true, username: true },
+    });
     await prisma.account.delete({ where: { id: params.id } });
+    if (acc) {
+      await prisma.deletedAccount
+        .create({ data: { igUsername: acc.igUsername || null, username: acc.username || null } })
+        .catch(() => {}); // tombstone is best-effort; deletion already succeeded
+    }
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Account delete error:", error);

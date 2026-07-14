@@ -48,6 +48,15 @@ export async function POST(req: NextRequest) {
         });
         results.push({ igUsername, status: "linked", accountId: account.id });
       } else {
+        // Don't resurrect an account the team deleted on purpose.
+        const tomb = await prisma.deletedAccount.findFirst({
+          where: { igUsername: igUsername.toLowerCase() },
+        });
+        if (tomb) {
+          results.push({ igUsername, status: "skipped_deleted" });
+          continue;
+        }
+
         // Create new account with this igUsername
         // Find or create model
         let model = modelName

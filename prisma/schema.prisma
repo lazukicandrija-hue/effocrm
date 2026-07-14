@@ -232,6 +232,17 @@ model DriveAuth {
   updatedAt    DateTime @updatedAt
 }
 
+// Tombstone of accounts you deleted, so the scraper's auto-linker can't resurrect
+// them on the next scrape. Cleared automatically when an account is re-added.
+model DeletedAccount {
+  id         String   @id @default(cuid())
+  igUsername String?
+  username   String?
+  deletedAt  DateTime @default(now())
+
+  @@index([igUsername])
+}
+
 // ============================================
 // INSTAGRAM SCRAPING MODELS
 // ============================================
