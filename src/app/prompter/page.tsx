@@ -58,6 +58,19 @@ function b64ToBlob(b64: string, type = "image/jpeg"): Blob {
   return new Blob([arr], { type });
 }
 
+// Safely read the /api/first-frame response — a gateway timeout can return an HTML
+// error page, so never assume the body is JSON.
+async function readFrameResponse(
+  res: Response
+): Promise<{ image?: string; contentType?: string; error?: string }> {
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    return {};
+  }
+}
+
 export default function FirstFramePage() {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
@@ -112,8 +125,12 @@ export default function FirstFramePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: url.trim() }),
       });
-      const data = await res.json();
-      if (!res.ok || !data.image) throw new Error(data.error || "Couldn't get the first frame.");
+      const data = await readFrameResponse(res);
+      if (!res.ok || !data.image)
+        throw new Error(
+          data.error ||
+            "Couldn't fetch that reel — the link download is down right now. Use the Upload option below (it's instant), or try again."
+        );
       showResult(b64ToBlob(data.image, data.contentType || "image/jpeg"));
     } catch (e: any) {
       setError(e?.message || "Something went wrong.");
@@ -136,7 +153,7 @@ export default function FirstFramePage() {
         const fd = new FormData(); // fallback: let the service decode odd formats
         fd.append("file", file, file.name || "upload.mp4");
         const res = await fetch("/api/first-frame", { method: "POST", body: fd });
-        const data = await res.json();
+        const data = await readFrameResponse(res);
         if (!res.ok || !data.image) throw new Error(data.error || "Couldn't read this file.");
         showResult(b64ToBlob(data.image, data.contentType || "image/jpeg"));
       } catch (e: any) {
