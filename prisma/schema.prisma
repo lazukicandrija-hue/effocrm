@@ -222,6 +222,16 @@ model Recreation {
   @@index([createdAt])
 }
 
+// Single-row store (id = "default") for the Google Drive OAuth refresh token,
+// captured when the user clicks "Connect Google Drive". Kept in the DB (not env)
+// because it's obtained at runtime via the OAuth callback.
+model DriveAuth {
+  id           String   @id
+  refreshToken String   @db.Text
+  email        String?
+  updatedAt    DateTime @updatedAt
+}
+
 // ============================================
 // INSTAGRAM SCRAPING MODELS
 // ============================================

@@ -1,66 +1,126 @@
-// Google Drive delivery for finished reels. Uses a Google service account
-// (server-to-server, no interactive OAuth). Configure via env on the CRM app:
-//   GOOGLE_SERVICE_ACCOUNT_JSON  the full service-account JSON key (one line)
-//   GOOGLE_DRIVE_FOLDER_ID       the Drive folder to drop reels into (shared
-//                                with the service account's email as Editor)
-//
-// Scope is drive.file — the account can only touch files it creates, never the
-// rest of the user's Drive. Auth is a self-signed JWT exchanged for an access
-// token (cached until ~1 min before expiry). No extra npm dependencies.
-import crypto from "crypto";
+// Google Drive delivery for finished reels, via OAuth as the user (not a service
+// account — those can't upload to a personal Gmail Drive). The user clicks
+// "Connect Google Drive" once; we store the refresh token and upload reels into
+// their folder, owned by them. Configure via env on the CRM app:
+//   GOOGLE_OAUTH_CLIENT_ID      OAuth 2.0 Web client id
+//   GOOGLE_OAUTH_CLIENT_SECRET  its secret
+//   GOOGLE_DRIVE_FOLDER_ID      the Drive folder to drop reels into
+// Scope is drive.file (per-file; can't see the rest of the user's Drive).
+import prisma from "@/lib/prisma";
 
-const SA_JSON = process.env.GOOGLE_SERVICE_ACCOUNT_JSON || "";
+const CLIENT_ID = process.env.GOOGLE_OAUTH_CLIENT_ID || "";
+const CLIENT_SECRET = process.env.GOOGLE_OAUTH_CLIENT_SECRET || "";
 const FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID || "";
+const SCOPE = "https://www.googleapis.com/auth/drive.file";
 
-export function driveConfigured(): boolean {
-  return !!SA_JSON && !!FOLDER_ID;
+// True once the three env values are present (i.e. the OAuth app exists).
+export function driveEnvReady(): boolean {
+  return !!(CLIENT_ID && CLIENT_SECRET && FOLDER_ID);
 }
 
-function serviceAccount(): { client_email: string; private_key: string } {
-  const sa = JSON.parse(SA_JSON);
-  if (!sa.client_email || !sa.private_key) throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON missing client_email/private_key");
-  return sa;
+export function redirectUri(): string {
+  const base = (process.env.NEXTAUTH_URL || "").replace(/\/$/, "");
+  return `${base}/api/drive/callback`;
+}
+
+// The Google consent URL the "Connect Google Drive" button sends the user to.
+export function consentUrl(): string {
+  const p = new URLSearchParams({
+    client_id: CLIENT_ID,
+    redirect_uri: redirectUri(),
+    response_type: "code",
+    scope: SCOPE,
+    access_type: "offline", // ask for a refresh token
+    prompt: "consent", // force refresh_token even on re-connect
+    include_granted_scopes: "true",
+  });
+  return `https://accounts.google.com/o/oauth2/v2/auth?${p.toString()}`;
+}
+
+// Exchange the callback code for tokens and persist the refresh token.
+export async function exchangeCode(code: string): Promise<{ email: string | null }> {
+  const res = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      code,
+      client_id: CLIENT_ID,
+      client_secret: CLIENT_SECRET,
+      redirect_uri: redirectUri(),
+      grant_type: "authorization_code",
+    }),
+    signal: AbortSignal.timeout(20000),
+  });
+  const d: any = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(d.error_description || d.error || `token exchange failed (${res.status})`);
+  if (!d.refresh_token) {
+    throw new Error("Google didn't return a refresh token — remove the app at myaccount.google.com/permissions and reconnect.");
+  }
+  let email: string | null = null;
+  try {
+    const ui = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+      headers: { Authorization: `Bearer ${d.access_token}` },
+    });
+    if (ui.ok) email = (await ui.json()).email ?? null;
+  } catch {
+    /* email is best-effort */
+  }
+  await prisma.driveAuth.upsert({
+    where: { id: "default" },
+    create: { id: "default", refreshToken: d.refresh_token, email },
+    update: { refreshToken: d.refresh_token, email },
+  });
+  return { email };
+}
+
+async function storedRefreshToken(): Promise<string | null> {
+  const row = await prisma.driveAuth.findUnique({ where: { id: "default" } });
+  return row?.refreshToken || null;
+}
+
+// Connected = env present AND a refresh token stored.
+export async function driveStatus(): Promise<{ envReady: boolean; connected: boolean; email: string | null }> {
+  const envReady = driveEnvReady();
+  if (!envReady) return { envReady, connected: false, email: null };
+  const row = await prisma.driveAuth.findUnique({ where: { id: "default" } });
+  return { envReady, connected: !!row?.refreshToken, email: row?.email ?? null };
 }
 
 let cached: { token: string; expMs: number } | null = null;
 
 async function accessToken(): Promise<string> {
-  if (cached && cached.expMs > Date.now() + 60_000) return cached.token;
-  const { client_email, private_key } = serviceAccount();
-  const now = Math.floor(Date.now() / 1000);
-  const enc = (o: unknown) => Buffer.from(JSON.stringify(o)).toString("base64url");
-  const input = `${enc({ alg: "RS256", typ: "JWT" })}.${enc({
-    iss: client_email,
-    scope: "https://www.googleapis.com/auth/drive.file",
-    aud: "https://oauth2.googleapis.com/token",
-    iat: now,
-    exp: now + 3600,
-  })}`;
-  const sig = crypto.sign("RSA-SHA256", Buffer.from(input), private_key).toString("base64url");
+  if (cached && cached.expMs > Date.now() + 60000) return cached.token;
+  const rt = await storedRefreshToken();
+  if (!rt) throw new Error("Drive not connected");
   const res = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
-      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
-      assertion: `${input}.${sig}`,
+      client_id: CLIENT_ID,
+      client_secret: CLIENT_SECRET,
+      refresh_token: rt,
+      grant_type: "refresh_token",
     }),
-    signal: AbortSignal.timeout(20_000),
+    signal: AbortSignal.timeout(20000),
   });
-  const data: any = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(`Drive auth failed: ${data.error_description || data.error || res.status}`);
-  cached = { token: data.access_token, expMs: Date.now() + data.expires_in * 1000 };
-  return data.access_token;
+  const d: any = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(d.error_description || d.error || `refresh failed (${res.status})`);
+  cached = { token: d.access_token, expMs: Date.now() + d.expires_in * 1000 };
+  return d.access_token;
 }
 
-// Upload bytes we already hold to the configured Drive folder. Returns a
-// shareable Drive link. Multipart upload — fine for reel-sized files (a few MB).
-export async function uploadToDrive(
+// Upload bytes to the configured folder. Returns a shareable link, or null when
+// Drive isn't connected (so callers can treat delivery as optional).
+export async function maybeUploadToDrive(
   name: string,
   bytes: Buffer,
   mimeType = "video/mp4"
-): Promise<{ id: string; link: string }> {
+): Promise<string | null> {
+  if (!driveEnvReady()) return null;
+  const rt = await storedRefreshToken();
+  if (!rt) return null;
   const token = await accessToken();
-  const boundary = "efrt" + crypto.randomBytes(8).toString("hex");
+  const boundary = "efrt" + Math.random().toString(36).slice(2);
   const body = Buffer.concat([
     Buffer.from(
       `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n` +
@@ -76,10 +136,10 @@ export async function uploadToDrive(
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": `multipart/related; boundary=${boundary}` },
       body,
-      signal: AbortSignal.timeout(120_000),
+      signal: AbortSignal.timeout(120000),
     }
   );
-  const data: any = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(`Drive upload failed: ${JSON.stringify(data).slice(0, 200)}`);
-  return { id: data.id, link: data.webViewLink || `https://drive.google.com/file/d/${data.id}/view` };
+  const d: any = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`Drive upload failed: ${JSON.stringify(d).slice(0, 200)}`);
+  return d.webViewLink || `https://drive.google.com/file/d/${d.id}/view`;
 }

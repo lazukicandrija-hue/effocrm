@@ -137,6 +137,16 @@ const statements = [
     `ALTER TABLE "Recreation" ADD COLUMN IF NOT EXISTS "driveError" TEXT;`,
   ],
   [
+    "DriveAuth table",
+    `CREATE TABLE IF NOT EXISTS "DriveAuth" (
+       "id" TEXT NOT NULL,
+       "refreshToken" TEXT NOT NULL,
+       "email" TEXT,
+       "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+       CONSTRAINT "DriveAuth_pkey" PRIMARY KEY ("id")
+     );`,
+  ],
+  [
     "ScraperControl table",
     `CREATE TABLE IF NOT EXISTS "ScraperControl" (
        "id" TEXT NOT NULL,

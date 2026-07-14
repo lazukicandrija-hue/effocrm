@@ -18,7 +18,7 @@ import {
   AT_FIELDS,
 } from "@/lib/airtable";
 import { presignGet, spacesConfigured, putBuffer } from "@/lib/spaces";
-import { driveConfigured, uploadToDrive } from "@/lib/drive";
+import { maybeUploadToDrive } from "@/lib/drive";
 
 export const DEFAULT_PROMPT = "make her hair blonde and remove any text from the screen";
 
@@ -145,12 +145,10 @@ async function checkMotion(job: any) {
     const finalKey = await putBuffer(`recreate/${job.id}-final.mp4`, bytes, "video/mp4");
     let driveUrl: string | null = null;
     let driveError: string | null = null;
-    if (driveConfigured()) {
-      try {
-        driveUrl = (await uploadToDrive(`poppy-${job.id}.mp4`, bytes)).link;
-      } catch (e) {
-        driveError = e instanceof Error ? e.message : String(e);
-      }
+    try {
+      driveUrl = await maybeUploadToDrive(`poppy-${job.id}.mp4`, bytes); // null if not connected
+    } catch (e) {
+      driveError = e instanceof Error ? e.message : String(e);
     }
     await prisma.recreation.update({ where: { id: job.id }, data: { finalKey, driveUrl, driveError } });
   } catch (e) {

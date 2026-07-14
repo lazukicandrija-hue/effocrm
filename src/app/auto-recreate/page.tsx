@@ -13,6 +13,8 @@ import {
   ExternalLink,
   AlertTriangle,
   UserCircle,
+  CheckCircle2,
+  HardDrive,
 } from "lucide-react";
 
 const STATUS_META: Record<string, { label: string; color: string }> = {
@@ -32,6 +34,12 @@ export default function AutoRecreatePage() {
   const [ready, setReady] = useState<{ ok: boolean; reason?: string }>({ ok: true });
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [drive, setDrive] = useState<{ envReady: boolean; connected: boolean; email: string | null }>({
+    envReady: false,
+    connected: false,
+    email: null,
+  });
+  const [notice, setNotice] = useState<string | null>(null);
 
   const fetchItems = useCallback(async () => {
     try {
@@ -50,6 +58,22 @@ export default function AutoRecreatePage() {
   useEffect(() => {
     fetchItems();
   }, [fetchItems]);
+
+  // Drive connection status + one-time feedback from the OAuth round-trip.
+  useEffect(() => {
+    fetch("/api/drive/status")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d && typeof d.envReady === "boolean") setDrive(d);
+      })
+      .catch(() => {});
+    const params = new URLSearchParams(window.location.search);
+    const p = params.get("drive");
+    if (p === "connected") setNotice("✓ Google Drive connected — finished reels will be delivered there.");
+    else if (p === "notconfigured") setNotice("Drive isn't set up on the server yet.");
+    else if (p) setNotice(`Drive connection failed${params.get("msg") ? `: ${params.get("msg")}` : ""}.`);
+    if (p) window.history.replaceState({}, "", "/auto-recreate");
+  }, []);
 
   // While any job is in flight, drive the pipeline: tick + refetch every 10s.
   const anyActive = items.some((i) => ACTIVE.has(i.status));
@@ -109,6 +133,39 @@ export default function AutoRecreatePage() {
             image → Motion Control → finished reel. No hands needed.
           </p>
         </div>
+
+        {/* Google Drive connection */}
+        {drive.envReady && (
+          <div className="flex items-center gap-2 flex-wrap">
+            {drive.connected ? (
+              <span className="inline-flex items-center gap-1.5 text-xs text-green-600 font-medium">
+                <CheckCircle2 className="h-4 w-4" />
+                Google Drive connected{drive.email ? ` — ${drive.email}` : ""}
+                <a
+                  href="/api/drive/connect"
+                  className="text-gray-400 hover:text-[#d4a853] underline ml-1 font-normal"
+                >
+                  reconnect
+                </a>
+              </span>
+            ) : (
+              <a
+                href="/api/drive/connect"
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium text-white"
+                style={{ backgroundColor: "#4285F4" }}
+              >
+                <HardDrive className="h-4 w-4" />
+                Connect Google Drive
+              </a>
+            )}
+          </div>
+        )}
+
+        {notice && (
+          <div className="text-xs px-3 py-2 rounded-lg bg-gray-100 text-gray-700 border border-gray-200">
+            {notice}
+          </div>
+        )}
 
         {!ready.ok && (
           <Card>
