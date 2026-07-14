@@ -194,6 +194,31 @@ model BadOutput {
   @@index([createdAt])
 }
 
+// An auto-recreation job: a source reel → Poppy image (image-edit workflow) →
+// final reel (Motion-Control workflow), driven through the RUNNING-HUB Airtable
+// base. The CRM acts as a "robot VA": it only CREATES rows + ticks START, then
+// polls STATUS — it never edits/deletes existing Airtable data.
+model Recreation {
+  id             String   @id @default(cuid())
+  sourceUrl      String              // the reel link to copy
+  prompt         String   @db.Text   // image-edit prompt (fixed default, editable)
+  status         String   @default("QUEUED") // QUEUED|PREPPING|IMAGE_WAIT|MOTION_WAIT|DONE|FAILED
+  stage          String?             // short human-readable current step
+  frameKey       String?             // Spaces key of the extracted first frame
+  reelKey        String?             // Spaces key of the downloaded reel
+  imageRecordId  String?             // Airtable image-edit record id
+  poppyImageUrl  String?  @db.Text   // image-edit OUTPUT_URL (the Poppy image)
+  motionRecordId String?             // Airtable Motion-Control record id
+  finalVideoUrl  String?  @db.Text   // Motion-Control OUTPUT_URL (the finished reel)
+  error          String?  @db.Text
+  addedBy        String?             // team member who kicked it off
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+}
+
 // ============================================
 // INSTAGRAM SCRAPING MODELS
 // ============================================

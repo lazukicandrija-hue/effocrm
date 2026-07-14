@@ -5,7 +5,8 @@
 //   SPACES_KEY      the Spaces access key
 //   SPACES_SECRET   the Spaces secret key
 //   SPACES_ENDPOINT (optional) defaults to https://<region>.digitaloceanspaces.com
-import { S3Client } from "@aws-sdk/client-s3";
+import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 export const SPACES_REGION = process.env.SPACES_REGION || "fra1";
 export const SPACES_BUCKET = process.env.SPACES_BUCKET || "";
@@ -17,6 +18,16 @@ export const SPACES_ENDPOINT =
 // True once the bucket + keys are wired up. Routes return a friendly 503 until then.
 export function spacesConfigured(): boolean {
   return !!(SPACES_BUCKET && SPACES_KEY && SPACES_SECRET);
+}
+
+// A short-lived signed GET URL for an object — used to hand a private Spaces file
+// (reel / first frame) to Airtable, which fetches + copies it immediately.
+export async function presignGet(key: string, expiresIn = 3600): Promise<string> {
+  return getSignedUrl(
+    spaces(),
+    new GetObjectCommand({ Bucket: SPACES_BUCKET, Key: key }),
+    { expiresIn }
+  );
 }
 
 let _client: S3Client | null = null;

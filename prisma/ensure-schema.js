@@ -96,6 +96,35 @@ const statements = [
     `CREATE INDEX IF NOT EXISTS "BadOutput_createdAt_idx" ON "BadOutput"("createdAt");`,
   ],
   [
+    "Recreation table",
+    `CREATE TABLE IF NOT EXISTS "Recreation" (
+       "id" TEXT NOT NULL,
+       "sourceUrl" TEXT NOT NULL,
+       "prompt" TEXT NOT NULL,
+       "status" TEXT NOT NULL DEFAULT 'QUEUED',
+       "stage" TEXT,
+       "frameKey" TEXT,
+       "reelKey" TEXT,
+       "imageRecordId" TEXT,
+       "poppyImageUrl" TEXT,
+       "motionRecordId" TEXT,
+       "finalVideoUrl" TEXT,
+       "error" TEXT,
+       "addedBy" TEXT,
+       "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+       "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+       CONSTRAINT "Recreation_pkey" PRIMARY KEY ("id")
+     );`,
+  ],
+  [
+    "Recreation_status_idx",
+    `CREATE INDEX IF NOT EXISTS "Recreation_status_idx" ON "Recreation"("status");`,
+  ],
+  [
+    "Recreation_createdAt_idx",
+    `CREATE INDEX IF NOT EXISTS "Recreation_createdAt_idx" ON "Recreation"("createdAt");`,
+  ],
+  [
     "ScraperControl table",
     `CREATE TABLE IF NOT EXISTS "ScraperControl" (
        "id" TEXT NOT NULL,
