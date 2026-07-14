@@ -92,20 +92,27 @@ async function checkImage(job: any) {
   const poppyUrl = String(fields[AT_FIELDS.OUTPUT_URL] || "").trim();
   if (!poppyUrl) return; // done but URL not written yet — check again next tick
 
+  // Atomic claim so overlapping ticks (page + cron + multiple users) can't create
+  // two Motion-Control rows = two paid renders. Only the tick that flips
+  // IMAGE_WAIT→MOTION_WAIT proceeds; any racing tick sees count 0 and bails.
+  const claimed = await prisma.recreation.updateMany({
+    where: { id: job.id, status: "IMAGE_WAIT" },
+    data: { poppyImageUrl: poppyUrl, status: "MOTION_WAIT", stage: "Rendering the reel (7–10 min)…" },
+  });
+  if (claimed.count === 0) return; // another tick already handed this off
+
   const reelUrl = await presignGet(job.reelKey, 3600);
   const recId = await createRecord(AT_TABLES.MOTION, {
     [AT_FIELDS.REEL]: attach(reelUrl),
     [AT_FIELDS.IMAGE]: attach(poppyUrl),
     [AT_FIELDS.START]: true,
   });
-  await prisma.recreation.update({
-    where: { id: job.id },
-    data: { poppyImageUrl: poppyUrl, motionRecordId: recId, status: "MOTION_WAIT", stage: "Rendering the reel (7–10 min)…" },
-  });
+  await prisma.recreation.update({ where: { id: job.id }, data: { motionRecordId: recId } });
 }
 
 // MOTION_WAIT → poll Motion-Control STATUS → on done store the final video → DONE
 async function checkMotion(job: any) {
+  if (!job.motionRecordId) return; // claimed to MOTION_WAIT but row not created yet
   const fields = await getRecord(AT_TABLES.MOTION, job.motionRecordId);
   const status = String(fields[AT_FIELDS.STATUS] || "").trim();
   if (/^error/i.test(status)) throw new Error(`Motion Control failed: ${status}`);
@@ -120,6 +127,17 @@ async function checkMotion(job: any) {
 
 // Advance every in-flight job by one step. Safe to call repeatedly.
 export async function tick(): Promise<{ prepped: number; imageChecked: number; motionChecked: number }> {
+  // Self-heal: a job claimed to MOTION_WAIT whose Motion-Control row never got
+  // created (process died mid-handoff) → return it to IMAGE_WAIT to retry.
+  await prisma.recreation.updateMany({
+    where: {
+      status: "MOTION_WAIT",
+      motionRecordId: null,
+      updatedAt: { lt: new Date(Date.now() - 3 * 60 * 1000) },
+    },
+    data: { status: "IMAGE_WAIT", stage: "Making the Poppy image…" },
+  });
+
   let prepped = 0,
     imageChecked = 0,
     motionChecked = 0;
