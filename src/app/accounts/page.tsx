@@ -892,11 +892,11 @@ export default function AccountsPage() {
                   <SortableHead label="Followers" field="followers" />
                   <SortableHead label="Views Today" field="viewsToday" />
                   <SortableHead label="Total Views" field="totalViews" />
-                  <SortableHead label="FB" field="hasFacebook" align="center" className="text-center" />
-                  <SortableHead label="Bio Link" field="linkInBio" align="center" className="text-center" />
                   <SortableHead label="Last Post" field="lastPost" />
                   <SortableHead label="Acc. Created" field="accountCreatedDate" />
                   <TableHead>Notes</TableHead>
+                  <SortableHead label="FB" field="hasFacebook" align="center" className="text-center" />
+                  <SortableHead label="Bio Link" field="linkInBio" align="center" className="text-center" />
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -998,6 +998,24 @@ export default function AccountsPage() {
                       <TableCell className="font-medium">
                         {formatNumber(account.totalViews)}
                       </TableCell>
+                      <TableCell className="text-sm whitespace-nowrap">
+                        <DateCell
+                          value={account.lastPost}
+                          onPick={(v) => setAccountDate(account, "lastPost", v)}
+                        />
+                      </TableCell>
+                      <TableCell className="text-sm whitespace-nowrap">
+                        <DateCell
+                          value={account.accountCreatedDate}
+                          onPick={(v) => setAccountDate(account, "accountCreatedDate", v)}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <NotesCell
+                          value={account.notes}
+                          onSave={(v) => setAccountNotes(account, v)}
+                        />
+                      </TableCell>
                       <TableCell className="text-center">
                         <button
                           type="button"
@@ -1031,24 +1049,6 @@ export default function AccountsPage() {
                             <span className="text-gray-300 leading-none">—</span>
                           )}
                         </button>
-                      </TableCell>
-                      <TableCell className="text-sm whitespace-nowrap">
-                        <DateCell
-                          value={account.lastPost}
-                          onPick={(v) => setAccountDate(account, "lastPost", v)}
-                        />
-                      </TableCell>
-                      <TableCell className="text-sm whitespace-nowrap">
-                        <DateCell
-                          value={account.accountCreatedDate}
-                          onPick={(v) => setAccountDate(account, "accountCreatedDate", v)}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <NotesCell
-                          value={account.notes}
-                          onSave={(v) => setAccountNotes(account, v)}
-                        />
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center justify-end gap-1">
