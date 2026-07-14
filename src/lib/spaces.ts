@@ -5,7 +5,7 @@
 //   SPACES_KEY      the Spaces access key
 //   SPACES_SECRET   the Spaces secret key
 //   SPACES_ENDPOINT (optional) defaults to https://<region>.digitaloceanspaces.com
-import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 export const SPACES_REGION = process.env.SPACES_REGION || "fra1";
@@ -28,6 +28,19 @@ export async function presignGet(key: string, expiresIn = 3600): Promise<string>
     new GetObjectCommand({ Bucket: SPACES_BUCKET, Key: key }),
     { expiresIn }
   );
+}
+
+// Store bytes we already hold in memory (e.g. a finished reel downloaded from
+// RunningHub) as a permanent private object. Served later via presignGet.
+export async function putBuffer(
+  key: string,
+  body: Buffer,
+  contentType = "application/octet-stream"
+): Promise<string> {
+  await spaces().send(
+    new PutObjectCommand({ Bucket: SPACES_BUCKET, Key: key, Body: body, ContentType: contentType })
+  );
+  return key;
 }
 
 let _client: S3Client | null = null;

@@ -17,7 +17,8 @@ import {
   AT_TABLES,
   AT_FIELDS,
 } from "@/lib/airtable";
-import { presignGet, spacesConfigured } from "@/lib/spaces";
+import { presignGet, spacesConfigured, putBuffer } from "@/lib/spaces";
+import { driveConfigured, uploadToDrive } from "@/lib/drive";
 
 export const DEFAULT_PROMPT = "make her hair blonde and remove any text from the screen";
 
@@ -110,7 +111,15 @@ async function checkImage(job: any) {
   await prisma.recreation.update({ where: { id: job.id }, data: { motionRecordId: recId } });
 }
 
-// MOTION_WAIT → poll Motion-Control STATUS → on done store the final video → DONE
+async function downloadReel(url: string): Promise<Buffer> {
+  const res = await fetch(url, { signal: AbortSignal.timeout(120000) });
+  if (!res.ok) throw new Error(`download ${res.status}`);
+  const buf = Buffer.from(await res.arrayBuffer());
+  if (buf.length < 1000) throw new Error("downloaded reel too small");
+  return buf;
+}
+
+// MOTION_WAIT → poll Motion-Control STATUS → on done: keep a permanent copy + deliver → DONE
 async function checkMotion(job: any) {
   if (!job.motionRecordId) return; // claimed to MOTION_WAIT but row not created yet
   const fields = await getRecord(AT_TABLES.MOTION, job.motionRecordId);
@@ -119,10 +128,39 @@ async function checkMotion(job: any) {
   if (status.toLowerCase() !== "done") return;
   const videoUrl = String(fields[AT_FIELDS.OUTPUT_URL] || "").trim();
   if (!videoUrl) return;
-  await prisma.recreation.update({
-    where: { id: job.id },
-    data: { finalVideoUrl: videoUrl, status: "DONE", stage: "Done" },
+
+  // Atomic claim: MOTION_WAIT → DONE (winner only). finalVideoUrl = the RunningHub
+  // URL immediately, so the reel is never lost even if the copy step below fails.
+  const claimed = await prisma.recreation.updateMany({
+    where: { id: job.id, status: "MOTION_WAIT" },
+    data: { status: "DONE", stage: "Done", finalVideoUrl: videoUrl },
   });
+  if (claimed.count === 0) return; // another tick already finalized this
+
+  // Best-effort: download once → permanent Spaces copy + deliver to Google Drive.
+  // The RunningHub link expires, so the Spaces copy is what the CRM plays. Any
+  // failure here is non-fatal — the job stays DONE and we record the reason.
+  try {
+    const bytes = await downloadReel(videoUrl);
+    const finalKey = await putBuffer(`recreate/${job.id}-final.mp4`, bytes, "video/mp4");
+    let driveUrl: string | null = null;
+    let driveError: string | null = null;
+    if (driveConfigured()) {
+      try {
+        driveUrl = (await uploadToDrive(`poppy-${job.id}.mp4`, bytes)).link;
+      } catch (e) {
+        driveError = e instanceof Error ? e.message : String(e);
+      }
+    }
+    await prisma.recreation.update({ where: { id: job.id }, data: { finalKey, driveUrl, driveError } });
+  } catch (e) {
+    await prisma.recreation
+      .update({
+        where: { id: job.id },
+        data: { driveError: `save failed: ${e instanceof Error ? e.message : String(e)}` },
+      })
+      .catch(() => {});
+  }
 }
 
 // Advance every in-flight job by one step. Safe to call repeatedly.

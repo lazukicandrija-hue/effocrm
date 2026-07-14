@@ -210,6 +210,9 @@ model Recreation {
   poppyImageUrl  String?  @db.Text   // image-edit OUTPUT_URL (the Poppy image)
   motionRecordId String?             // Airtable Motion-Control record id
   finalVideoUrl  String?  @db.Text   // Motion-Control OUTPUT_URL (the finished reel)
+  finalKey       String?             // Spaces key of the permanent reel copy
+  driveUrl       String?  @db.Text   // Google Drive shareable link (if delivered)
+  driveError     String?  @db.Text   // non-fatal: reel is done even if Drive push failed
   error          String?  @db.Text
   addedBy        String?             // team member who kicked it off
   createdAt      DateTime @default(now())

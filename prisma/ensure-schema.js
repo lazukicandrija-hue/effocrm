@@ -125,6 +125,18 @@ const statements = [
     `CREATE INDEX IF NOT EXISTS "Recreation_createdAt_idx" ON "Recreation"("createdAt");`,
   ],
   [
+    "Recreation.finalKey",
+    `ALTER TABLE "Recreation" ADD COLUMN IF NOT EXISTS "finalKey" TEXT;`,
+  ],
+  [
+    "Recreation.driveUrl",
+    `ALTER TABLE "Recreation" ADD COLUMN IF NOT EXISTS "driveUrl" TEXT;`,
+  ],
+  [
+    "Recreation.driveError",
+    `ALTER TABLE "Recreation" ADD COLUMN IF NOT EXISTS "driveError" TEXT;`,
+  ],
+  [
     "ScraperControl table",
     `CREATE TABLE IF NOT EXISTS "ScraperControl" (
        "id" TEXT NOT NULL,

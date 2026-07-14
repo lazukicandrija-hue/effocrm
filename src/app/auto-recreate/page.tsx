@@ -208,15 +208,29 @@ export default function AutoRecreatePage() {
                       </p>
                     )}
 
-                    {job.status === "DONE" && job.finalVideoUrl && (
-                      <a
-                        href={job.finalVideoUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-[11px] font-medium text-[#d4a853] hover:underline"
-                      >
-                        Open / download reel ↗
-                      </a>
+                    {job.status === "DONE" && (job.finalVideoUrl || job.driveUrl) && (
+                      <div className="flex items-center gap-3">
+                        {job.finalVideoUrl && (
+                          <a
+                            href={job.finalVideoUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[11px] font-medium text-[#d4a853] hover:underline"
+                          >
+                            Open / download ↗
+                          </a>
+                        )}
+                        {job.driveUrl && (
+                          <a
+                            href={job.driveUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[11px] font-medium text-[#4285F4] hover:underline"
+                          >
+                            Drive ↗
+                          </a>
+                        )}
+                      </div>
                     )}
 
                     <div className="mt-auto pt-1 flex items-center justify-between gap-1 text-[10px] text-gray-400">

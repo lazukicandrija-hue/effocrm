@@ -5,6 +5,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { createJob, pipelineReady, DEFAULT_PROMPT } from "@/lib/recreate";
+import { presignGet } from "@/lib/spaces";
 
 const SCRAPER_SECRET = process.env.SCRAPER_SECRET || "effortless-scraper-2026";
 
@@ -16,7 +17,17 @@ async function authed(req: NextRequest): Promise<boolean> {
 
 export async function GET(req: NextRequest) {
   if (!(await authed(req))) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const items = await prisma.recreation.findMany({ orderBy: { createdAt: "desc" }, take: 100 });
+  const rows = await prisma.recreation.findMany({ orderBy: { createdAt: "desc" }, take: 100 });
+  // Serve the permanent Spaces copy (fresh 6-day signed URL) when we have one;
+  // otherwise fall back to the stored RunningHub URL.
+  const items = await Promise.all(
+    rows.map(async (r) => ({
+      ...r,
+      finalVideoUrl: r.finalKey
+        ? await presignGet(r.finalKey, 6 * 24 * 3600).catch(() => r.finalVideoUrl)
+        : r.finalVideoUrl,
+    }))
+  );
   return NextResponse.json({ items, ready: pipelineReady(), defaultPrompt: DEFAULT_PROMPT });
 }
 
