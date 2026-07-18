@@ -5,9 +5,12 @@
 // Pipeline per job:
 //   QUEUED → (prompt service downloads reel + first frame → Spaces)
 //          → create image-edit row (frame + prompt, START=✓)  → IMAGE_WAIT
-//   IMAGE_WAIT → poll image-edit STATUS → on "done" grab OUTPUT_URL (Poppy image)
-//              → create Motion-Control row (reel + Poppy image, START=✓) → MOTION_WAIT
+//   IMAGE_WAIT → poll image-edit STATUS → on "done" grab OUTPUT_URL (Poppy image) → IMAGE_DONE
+//   IMAGE_DONE → (when a render slot is free) create Motion-Control row (reel + Poppy
+//                image, START=✓) → MOTION_WAIT
 //   MOTION_WAIT → poll Motion-Control STATUS → on "done" grab OUTPUT_URL (final reel) → DONE
+// New RunningHub tasks are only started while under MAX_INFLIGHT concurrent tasks,
+// so queuing many reels at once can't trip the API's concurrency limit.
 import prisma from "@/lib/prisma";
 import {
   createRecord,
@@ -27,6 +30,10 @@ const KLING_SECRET = process.env.SEEDANCE_API_SECRET || "";
 
 const MAX_PREP_PER_TICK = 2; // the reel download is the slow step — bound per tick
 const DAILY_CAP = 150; // safety: max jobs started per rolling 24h
+// Max RunningHub tasks (image-edit + Motion-Control) in flight at once. Firing too
+// many simultaneously trips RunningHub's concurrency limit (APIKEY_TASK_STATUS_ERROR),
+// which is what fails reels when several are queued together. Tunable via env.
+const MAX_INFLIGHT = Number(process.env.MAX_RH_INFLIGHT) || 2;
 
 export function pipelineReady(): { ok: boolean; reason?: string } {
   if (!KLING_URL) return { ok: false, reason: "prompt service not connected" };
@@ -84,7 +91,8 @@ async function prep(job: any) {
   });
 }
 
-// IMAGE_WAIT → poll image-edit STATUS → on done create Motion-Control row → MOTION_WAIT
+// IMAGE_WAIT → poll image-edit STATUS → on done park in IMAGE_DONE (motion is
+// submitted later, under the concurrency cap, by submitMotion).
 async function checkImage(job: any) {
   const fields = await getRecord(AT_TABLES.IMAGE_EDIT, job.imageRecordId);
   const status = String(fields[AT_FIELDS.STATUS] || "").trim();
@@ -93,19 +101,28 @@ async function checkImage(job: any) {
   const poppyUrl = String(fields[AT_FIELDS.OUTPUT_URL] || "").trim();
   if (!poppyUrl) return; // done but URL not written yet — check again next tick
 
-  // Atomic claim so overlapping ticks (page + cron + multiple users) can't create
-  // two Motion-Control rows = two paid renders. Only the tick that flips
-  // IMAGE_WAIT→MOTION_WAIT proceeds; any racing tick sees count 0 and bails.
-  const claimed = await prisma.recreation.updateMany({
+  // Park it: the Poppy image is ready, but hold before submitting the render so we
+  // don't blow past RunningHub's concurrency cap. Atomic so racing ticks don't
+  // double-advance.
+  await prisma.recreation.updateMany({
     where: { id: job.id, status: "IMAGE_WAIT" },
-    data: { poppyImageUrl: poppyUrl, status: "MOTION_WAIT", stage: "Rendering the reel (7–10 min)…" },
+    data: { poppyImageUrl: poppyUrl, status: "IMAGE_DONE", stage: "Waiting for a render slot…" },
   });
-  if (claimed.count === 0) return; // another tick already handed this off
+}
+
+// IMAGE_DONE → create Motion-Control row (START) → MOTION_WAIT. Called only when a
+// render slot is free (see tick), so we never exceed MAX_INFLIGHT concurrent tasks.
+async function submitMotion(job: any) {
+  const claimed = await prisma.recreation.updateMany({
+    where: { id: job.id, status: "IMAGE_DONE" },
+    data: { status: "MOTION_WAIT", stage: "Rendering the reel (7–10 min)…" },
+  });
+  if (claimed.count === 0) return; // another tick grabbed this slot
 
   const reelUrl = await presignGet(job.reelKey, 3600);
   const recId = await createRecord(AT_TABLES.MOTION, {
     [AT_FIELDS.REEL]: attach(reelUrl),
-    [AT_FIELDS.IMAGE]: attach(poppyUrl),
+    [AT_FIELDS.IMAGE]: attach(job.poppyImageUrl),
     [AT_FIELDS.START]: true,
   });
   await prisma.recreation.update({ where: { id: job.id }, data: { motionRecordId: recId } });
@@ -167,37 +184,35 @@ async function checkMotion(job: any) {
   }
 }
 
-// Advance every in-flight job by one step. Safe to call repeatedly.
-export async function tick(): Promise<{ prepped: number; imageChecked: number; motionChecked: number }> {
+// Advance every in-flight job by one step. Safe to call repeatedly. New RunningHub
+// tasks (image prep + motion submit) are only started while under MAX_INFLIGHT, so
+// we never fire more concurrent renders than the account allows.
+export async function tick(): Promise<{ prepped: number; imageChecked: number; motionChecked: number; submitted: number }> {
   // Self-heal: a job claimed to MOTION_WAIT whose Motion-Control row never got
-  // created (process died mid-handoff) → return it to IMAGE_WAIT to retry.
+  // created (process died mid-handoff) → return it to IMAGE_DONE to re-submit.
   await prisma.recreation.updateMany({
     where: {
       status: "MOTION_WAIT",
       motionRecordId: null,
       updatedAt: { lt: new Date(Date.now() - 3 * 60 * 1000) },
     },
-    data: { status: "IMAGE_WAIT", stage: "Making the Poppy image…" },
+    data: { status: "IMAGE_DONE", stage: "Waiting for a render slot…" },
   });
 
   let prepped = 0,
     imageChecked = 0,
-    motionChecked = 0;
+    motionChecked = 0,
+    submitted = 0;
 
-  const queued = await prisma.recreation.findMany({
-    where: { status: "QUEUED" },
-    take: MAX_PREP_PER_TICK,
-    orderBy: { createdAt: "asc" },
-  });
-  for (const j of queued) {
-    try {
-      await prep(j);
-      prepped++;
-    } catch (e) {
-      await failJob(j.id, e);
-    }
-  }
+  // How many RunningHub tasks are running right now (image + motion). New work is
+  // only started up to the remaining budget — this is the concurrency cap.
+  const [imgRunning, motRunning] = await Promise.all([
+    prisma.recreation.count({ where: { status: "IMAGE_WAIT" } }),
+    prisma.recreation.count({ where: { status: "MOTION_WAIT" } }),
+  ]);
+  let budget = Math.max(0, MAX_INFLIGHT - imgRunning - motRunning);
 
+  // Poll running image tasks (no new task — a completion frees a slot next tick).
   const imgWait = await prisma.recreation.findMany({ where: { status: "IMAGE_WAIT" }, take: 25 });
   for (const j of imgWait) {
     try {
@@ -208,6 +223,42 @@ export async function tick(): Promise<{ prepped: number; imageChecked: number; m
     }
   }
 
+  // Prefer finishing started work: submit renders for image-done jobs first.
+  if (budget > 0) {
+    const ready = await prisma.recreation.findMany({
+      where: { status: "IMAGE_DONE" },
+      take: budget,
+      orderBy: { createdAt: "asc" },
+    });
+    for (const j of ready) {
+      try {
+        await submitMotion(j);
+        submitted++;
+        budget--;
+      } catch (e) {
+        await failJob(j.id, e);
+      }
+    }
+  }
+
+  // Then start new reels (download + image-edit), within the remaining budget.
+  if (budget > 0) {
+    const queued = await prisma.recreation.findMany({
+      where: { status: "QUEUED" },
+      take: Math.min(budget, MAX_PREP_PER_TICK),
+      orderBy: { createdAt: "asc" },
+    });
+    for (const j of queued) {
+      try {
+        await prep(j);
+        prepped++;
+      } catch (e) {
+        await failJob(j.id, e);
+      }
+    }
+  }
+
+  // Poll running motion tasks.
   const motWait = await prisma.recreation.findMany({ where: { status: "MOTION_WAIT" }, take: 25 });
   for (const j of motWait) {
     try {
@@ -218,7 +269,24 @@ export async function tick(): Promise<{ prepped: number; imageChecked: number; m
     }
   }
 
-  return { prepped, imageChecked, motionChecked };
+  return { prepped, imageChecked, motionChecked, submitted };
+}
+
+// Re-run a FAILED job. If the Poppy image already exists (the common case — the
+// render failed), just re-queue the render; otherwise start over from scratch.
+export async function retryJob(id: string) {
+  const job = await prisma.recreation.findUnique({ where: { id } });
+  if (!job || job.status !== "FAILED") return null;
+  if (job.poppyImageUrl && job.reelKey) {
+    return prisma.recreation.update({
+      where: { id },
+      data: { status: "IMAGE_DONE", stage: "Waiting for a render slot…", motionRecordId: null, error: null, driveError: null },
+    });
+  }
+  return prisma.recreation.update({
+    where: { id },
+    data: { status: "QUEUED", stage: "Queued", error: null, imageRecordId: null, motionRecordId: null, poppyImageUrl: null },
+  });
 }
 
 export async function createJob(url: string, opts: { prompt?: string; addedBy?: string } = {}) {

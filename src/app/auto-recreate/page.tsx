@@ -15,17 +15,19 @@ import {
   UserCircle,
   CheckCircle2,
   HardDrive,
+  RefreshCw,
 } from "lucide-react";
 
 const STATUS_META: Record<string, { label: string; color: string }> = {
   QUEUED: { label: "Queued", color: "#6b7280" },
   PREPPING: { label: "Downloading reel…", color: "#3b82f6" },
   IMAGE_WAIT: { label: "Making Poppy image…", color: "#a855f7" },
+  IMAGE_DONE: { label: "Waiting for a render slot…", color: "#8b5cf6" },
   MOTION_WAIT: { label: "Rendering reel (7–10 min)…", color: "#d4a853" },
   DONE: { label: "Done", color: "#16a34a" },
   FAILED: { label: "Failed", color: "#dc2626" },
 };
-const ACTIVE = new Set(["QUEUED", "PREPPING", "IMAGE_WAIT", "MOTION_WAIT"]);
+const ACTIVE = new Set(["QUEUED", "PREPPING", "IMAGE_WAIT", "IMAGE_DONE", "MOTION_WAIT"]);
 
 export default function AutoRecreatePage() {
   const [items, setItems] = useState<any[]>([]);
@@ -40,6 +42,8 @@ export default function AutoRecreatePage() {
     email: null,
   });
   const [notice, setNotice] = useState<string | null>(null);
+  const [filter, setFilter] = useState<"all" | "active" | "done" | "failed">("all");
+  const [retrying, setRetrying] = useState<string | null>(null);
 
   const fetchItems = useCallback(async () => {
     try {
@@ -123,6 +127,35 @@ export default function AutoRecreatePage() {
     }
   };
 
+  const retry = async (id: string) => {
+    if (retrying) return;
+    setRetrying(id);
+    try {
+      await fetch(`/api/recreations/${id}/retry`, { method: "POST" });
+      await fetchItems();
+    } catch {
+      /* ignore */
+    } finally {
+      setRetrying(null);
+    }
+  };
+
+  const counts = {
+    all: items.length,
+    active: items.filter((i) => ACTIVE.has(i.status)).length,
+    done: items.filter((i) => i.status === "DONE").length,
+    failed: items.filter((i) => i.status === "FAILED").length,
+  };
+  const shown = items.filter((i) =>
+    filter === "all"
+      ? true
+      : filter === "active"
+      ? ACTIVE.has(i.status)
+      : filter === "done"
+      ? i.status === "DONE"
+      : i.status === "FAILED"
+  );
+
   return (
     <DashboardLayout>
       <div className="max-w-5xl mx-auto space-y-6">
@@ -205,12 +238,41 @@ export default function AutoRecreatePage() {
           </CardContent>
         </Card>
 
+        {/* Status summary + filter */}
+        {!loading && items.length > 0 && (
+          <div className="flex items-center gap-2 flex-wrap">
+            {([
+              ["all", `All ${counts.all}`, "#374151"],
+              ["active", `In progress ${counts.active}`, "#d4a853"],
+              ["done", `Done ${counts.done}`, "#16a34a"],
+              ["failed", `Failed ${counts.failed}`, "#dc2626"],
+            ] as const).map(([key, label, color]) => (
+              <button
+                key={key}
+                onClick={() => setFilter(key)}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
+                  filter === key ? "text-white" : "bg-white hover:bg-gray-50"
+                }`}
+                style={
+                  filter === key
+                    ? { backgroundColor: color, borderColor: color }
+                    : { color, borderColor: `${color}55` }
+                }
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Jobs */}
         {loading ? (
           <p className="text-sm text-gray-400">Loading…</p>
-        ) : items.length === 0 ? null : (
+        ) : items.length === 0 ? null : shown.length === 0 ? (
+          <p className="text-sm text-gray-400">No reels in this view.</p>
+        ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {items.map((job) => {
+            {shown.map((job) => {
               const st = STATUS_META[job.status] || STATUS_META.QUEUED;
               const active = ACTIVE.has(job.status);
               return (
@@ -263,6 +325,21 @@ export default function AutoRecreatePage() {
                       <p title={job.error} className="text-[11px] text-red-500 line-clamp-2">
                         {job.error}
                       </p>
+                    )}
+
+                    {job.status === "FAILED" && (
+                      <button
+                        onClick={() => retry(job.id)}
+                        disabled={retrying === job.id}
+                        className="inline-flex items-center gap-1 self-start text-[11px] font-semibold text-[#d4a853] hover:underline disabled:opacity-50"
+                      >
+                        {retrying === job.id ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-3 w-3" />
+                        )}
+                        Retry
+                      </button>
                     )}
 
                     {job.status === "DONE" && (job.finalVideoUrl || job.driveUrl) && (
