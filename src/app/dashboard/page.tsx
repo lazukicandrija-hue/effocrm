@@ -61,6 +61,7 @@ export default function DashboardPage() {
   const [modelId, setModelId] = useState("all");
   const [models, setModels] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [statsError, setStatsError] = useState(false);
   // Latest-reels feed (Instagram-style grid of newly-scraped reels)
   const [reels, setReels] = useState<any[]>([]);
   const [reelsLoading, setReelsLoading] = useState(true);
@@ -75,9 +76,16 @@ export default function DashboardPage() {
       const params = new URLSearchParams({ period, modelId });
       const res = await fetch(`/api/stats?${params}`);
       const data = await res.json();
+      // The tiny DB can briefly blip (Prisma P1001). Never render an error body
+      // as stats — that used to crash the whole page on `statusDistribution.map`.
+      if (!res.ok || !data || data.error || !Array.isArray(data.statusDistribution)) {
+        throw new Error(data?.error || "Stats unavailable");
+      }
       setStats(data);
+      setStatsError(false);
     } catch (error) {
       console.error("Failed to fetch stats:", error);
+      setStatsError(true);
     } finally {
       setLoading(false);
     }
@@ -109,8 +117,8 @@ export default function DashboardPage() {
         const params = new URLSearchParams({ period, modelId });
         const r = await fetch(`/api/stats?${params}`);
         const d = await r.json();
-        setStats(d);
-        const ls = d.lastSyncedAt ? new Date(d.lastSyncedAt).getTime() : 0;
+        if (r.ok && d && !d.error && Array.isArray(d.statusDistribution)) setStats(d);
+        const ls = d?.lastSyncedAt ? new Date(d.lastSyncedAt).getTime() : 0;
         if (ls > baseline) {
           fetchReels(); // fresh scrape landed — refresh the reels feed too
           setRefreshing(false);
@@ -434,13 +442,13 @@ export default function DashboardPage() {
               </CardHeader>
               <CardContent>
                 <div className="flex rounded-full overflow-hidden h-4 bg-gray-100">
-                  {stats.statusDistribution.map((status: any) =>
+                  {(stats.statusDistribution || []).map((status: any) =>
                     status.value > 0 ? (
                       <div
                         key={status.name}
                         className="h-full transition-all duration-500 ease-out"
                         style={{
-                          width: `${(status.value / stats.totalAccounts) * 100}%`,
+                          width: `${(status.value / Math.max(stats.totalAccounts, 1)) * 100}%`,
                           backgroundColor: status.color,
                         }}
                         title={`${status.name}: ${status.value}`}
@@ -449,7 +457,7 @@ export default function DashboardPage() {
                   )}
                 </div>
                 <div className="flex gap-6 mt-3">
-                  {stats.statusDistribution.map((status: any) => (
+                  {(stats.statusDistribution || []).map((status: any) => (
                     <div key={status.name} className="flex items-center gap-2">
                       <div
                         className="w-2.5 h-2.5 rounded-full"
@@ -618,6 +626,28 @@ export default function DashboardPage() {
               </CardContent>
             </Card>
           </>
+        ) : statsError ? (
+          <Card>
+            <CardContent className="p-8 text-center">
+              <p className="text-sm text-gray-700 font-medium">
+                Couldn&apos;t load the stats just now.
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                The database was briefly unreachable — this usually clears in a few seconds.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-4 gap-2"
+                onClick={() => {
+                  setLoading(true);
+                  fetchStats();
+                }}
+              >
+                <RefreshCw className="h-4 w-4" /> Retry
+              </Button>
+            </CardContent>
+          </Card>
         ) : (
           <div className="text-center py-12 text-gray-500">
             No data available. Add some accounts to get started.
