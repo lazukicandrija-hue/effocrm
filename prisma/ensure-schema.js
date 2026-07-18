@@ -137,6 +137,26 @@ const statements = [
     `ALTER TABLE "Recreation" ADD COLUMN IF NOT EXISTS "driveError" TEXT;`,
   ],
   [
+    "Phone table",
+    `CREATE TABLE IF NOT EXISTS "Phone" (
+       "id" TEXT NOT NULL,
+       "name" TEXT NOT NULL,
+       "notes" TEXT,
+       "position" INTEGER NOT NULL DEFAULT 0,
+       "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+       "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+       CONSTRAINT "Phone_pkey" PRIMARY KEY ("id")
+     );`,
+  ],
+  [
+    "Account.phoneId",
+    `ALTER TABLE "Account" ADD COLUMN IF NOT EXISTS "phoneId" TEXT;`,
+  ],
+  [
+    "Account_phoneId_idx",
+    `CREATE INDEX IF NOT EXISTS "Account_phoneId_idx" ON "Account"("phoneId");`,
+  ],
+  [
     "DriveAuth table",
     `CREATE TABLE IF NOT EXISTS "DriveAuth" (
        "id" TEXT NOT NULL,

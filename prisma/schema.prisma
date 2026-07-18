@@ -79,6 +79,8 @@ model Account {
   igUsername   String?     // Real Instagram username for scraping
   modelId     String?
   model       Model?      @relation(fields: [modelId], references: [id], onDelete: SetNull)
+  phoneId     String?     // which physical iPhone this account lives on
+  phone       Phone?      @relation(fields: [phoneId], references: [id], onDelete: SetNull)
   ownership   Ownership   @default(OWN)  // OWN = one of our models' accounts; COMPETITOR = a tracked rival
   niche       String[]    @default([])  // multi-select: Golf, Talking, Omegle, Podcast, Dancing, Motion Control
   decision    Decision?   // KEEP / REMOVE / TESTING
@@ -103,6 +105,7 @@ model Account {
   snapshots   AccountSnapshot[]
 
   @@index([modelId])
+  @@index([phoneId])
   @@index([status])
   @@index([decision])
   @@index([position])
@@ -230,6 +233,18 @@ model DriveAuth {
   refreshToken String   @db.Text
   email        String?
   updatedAt    DateTime @updatedAt
+}
+
+// A physical iPhone. Each holds several Instagram accounts (3–5), tracked so the
+// team knows which account lives on which device.
+model Phone {
+  id        String    @id @default(cuid())
+  name      String    // e.g. "iPhone 13 — black"
+  notes     String?
+  position  Int       @default(0)
+  accounts  Account[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 }
 
 // Tombstone of accounts you deleted, so the scraper's auto-linker can't resurrect

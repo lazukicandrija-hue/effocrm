@@ -62,6 +62,7 @@ export async function PUT(
       linkInBio,
       lastPost,
       accountCreatedDate,
+      phoneId,
     } = body;
 
     // Check if status changed to BANNED
@@ -101,6 +102,7 @@ export async function PUT(
     }
     if (followers !== undefined) updateData.followers = followers;
     if (notes !== undefined) updateData.notes = notes;
+    if (phoneId !== undefined) updateData.phoneId = phoneId || null;
 
     const account = await prisma.account.update({
       where: { id: params.id },

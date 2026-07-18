@@ -145,8 +145,14 @@ async function checkMotion(job: any) {
     const finalKey = await putBuffer(`recreate/${job.id}-final.mp4`, bytes, "video/mp4");
     let driveUrl: string | null = null;
     let driveError: string | null = null;
+    // Name the reel by date + time (Serbia, UTC+2) and drop it into a per-day
+    // folder in Drive, so finished reels are sortable and don't pile up.
+    const t = new Date(Date.now() + 2 * 3600 * 1000);
+    const p2 = (n: number) => String(n).padStart(2, "0");
+    const day = `${t.getUTCFullYear()}-${p2(t.getUTCMonth() + 1)}-${p2(t.getUTCDate())}`;
+    const stamp = `${day} ${p2(t.getUTCHours())}-${p2(t.getUTCMinutes())}`;
     try {
-      driveUrl = await maybeUploadToDrive(`poppy-${job.id}.mp4`, bytes); // null if not connected
+      driveUrl = await maybeUploadToDrive(`Poppy ${stamp}.mp4`, bytes, { subfolder: day }); // null if not connected
     } catch (e) {
       driveError = e instanceof Error ? e.message : String(e);
     }

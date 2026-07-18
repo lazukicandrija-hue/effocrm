@@ -22,11 +22,13 @@ import {
   Frame,
   Wand2,
   ThumbsDown,
+  Smartphone,
 } from "lucide-react";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Accounts", href: "/accounts", icon: Camera },
+  { name: "Phones", href: "/phones", icon: Smartphone },
   { name: "Reels Analytics", href: "/reels", icon: Film },
   { name: "What's Working", href: "/whats-working", icon: TrendingUp },
   { name: "First Frame", href: "/prompter", icon: Frame },
