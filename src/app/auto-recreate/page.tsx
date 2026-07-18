@@ -16,6 +16,8 @@ import {
   CheckCircle2,
   HardDrive,
   RefreshCw,
+  X,
+  Trash2,
 } from "lucide-react";
 
 const STATUS_META: Record<string, { label: string; color: string }> = {
@@ -137,6 +139,24 @@ export default function AutoRecreatePage() {
       /* ignore */
     } finally {
       setRetrying(null);
+    }
+  };
+
+  const remove = async (id: string) => {
+    setItems((prev) => prev.filter((i) => i.id !== id)); // optimistic
+    try {
+      await fetch(`/api/recreations/${id}`, { method: "DELETE" });
+    } catch {
+      /* ignore — it'll reappear on next refresh if it failed */
+    }
+  };
+
+  const clearFailed = async () => {
+    setItems((prev) => prev.filter((i) => i.status !== "FAILED"));
+    try {
+      await fetch("/api/recreations", { method: "DELETE" });
+    } catch {
+      /* ignore */
     }
   };
 
@@ -262,6 +282,15 @@ export default function AutoRecreatePage() {
                 {label}
               </button>
             ))}
+            {counts.failed > 0 && (
+              <button
+                onClick={clearFailed}
+                className="ml-auto inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
+              >
+                <Trash2 className="h-3 w-3" />
+                Clear failed
+              </button>
+            )}
           </div>
         )}
 
@@ -276,7 +305,16 @@ export default function AutoRecreatePage() {
               const st = STATUS_META[job.status] || STATUS_META.QUEUED;
               const active = ACTIVE.has(job.status);
               return (
-                <Card key={job.id} className="overflow-hidden flex flex-col">
+                <Card key={job.id} className="relative overflow-hidden flex flex-col">
+                  {job.status === "FAILED" && (
+                    <button
+                      onClick={() => remove(job.id)}
+                      title="Delete this failed reel"
+                      className="absolute top-1.5 right-1.5 z-10 p-1 rounded-full bg-black/40 text-gray-300 hover:bg-red-500 hover:text-white transition-colors"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                   {job.status === "DONE" && job.finalVideoUrl ? (
                     <div className="bg-black">
                       {/* eslint-disable-next-line jsx-a11y/media-has-caption */}

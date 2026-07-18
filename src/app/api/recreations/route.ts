@@ -53,3 +53,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: e?.message || "Failed to queue" }, { status: 400 });
   }
 }
+
+// Bulk "clear failed" — removes every FAILED job. Session only, and only ever
+// touches FAILED rows, so it can't wipe in-progress or finished reels.
+export async function DELETE() {
+  const session = await getServerSession(authOptions);
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const res = await prisma.recreation.deleteMany({ where: { status: "FAILED" } });
+  return NextResponse.json({ deleted: res.count });
+}
