@@ -214,6 +214,7 @@ model Recreation {
   motionRecordId String?             // Airtable Motion-Control record id
   finalVideoUrl  String?  @db.Text   // Motion-Control OUTPUT_URL (the finished reel)
   finalKey       String?             // Spaces key of the permanent reel copy
+  captionJobId   String?             // in-flight async caption job on the prompt service
   driveUrl       String?  @db.Text   // Google Drive shareable link (if delivered)
   driveError     String?  @db.Text   // non-fatal: reel is done even if Drive push failed
   error          String?  @db.Text

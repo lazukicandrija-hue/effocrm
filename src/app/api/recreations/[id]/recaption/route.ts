@@ -23,7 +23,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   await prisma.recreation.update({
     where: { id: params.id },
-    data: { finalVideoUrl: src, finalKey: null, driveError: null, stage: "Adding captions…" },
+    data: { finalVideoUrl: src, finalKey: null, captionJobId: null, driveError: null, stage: "Adding captions…" },
   });
   return NextResponse.json({ ok: true });
 }

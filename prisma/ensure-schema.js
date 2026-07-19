@@ -137,6 +137,10 @@ const statements = [
     `ALTER TABLE "Recreation" ADD COLUMN IF NOT EXISTS "driveError" TEXT;`,
   ],
   [
+    "Recreation.captionJobId",
+    `ALTER TABLE "Recreation" ADD COLUMN IF NOT EXISTS "captionJobId" TEXT;`,
+  ],
+  [
     "Phone table",
     `CREATE TABLE IF NOT EXISTS "Phone" (
        "id" TEXT NOT NULL,
