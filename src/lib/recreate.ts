@@ -34,6 +34,7 @@ const DAILY_CAP = 150; // safety: max jobs started per rolling 24h
 // many simultaneously trips RunningHub's concurrency limit (APIKEY_TASK_STATUS_ERROR),
 // which is what fails reels when several are queued together. Tunable via env.
 const MAX_INFLIGHT = Number(process.env.MAX_RH_INFLIGHT) || 2;
+const MAX_CAPTION_PER_TICK = 2; // captioning (whisper + ffmpeg) is slow — bound per tick
 
 export function pipelineReady(): { ok: boolean; reason?: string } {
   if (!KLING_URL) return { ok: false, reason: "prompt service not connected" };
@@ -136,7 +137,30 @@ async function downloadReel(url: string): Promise<Buffer> {
   return buf;
 }
 
-// MOTION_WAIT → poll Motion-Control STATUS → on done: keep a permanent copy + deliver → DONE
+// Ask the prompt service to burn CapCut-style captions onto a finished reel.
+// Returns the captioned reel's Spaces key + a signed URL. Slow (whisper + ffmpeg).
+async function klingCaption(url: string): Promise<{ key: string; url: string }> {
+  const res = await fetch(`${KLING_URL}/caption`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${KLING_SECRET}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ url }),
+    signal: AbortSignal.timeout(300000),
+  });
+  const text = await res.text();
+  let data: any = {};
+  try {
+    data = JSON.parse(text);
+  } catch {
+    /* non-JSON error page */
+  }
+  if (!res.ok) throw new Error(data?.detail || `caption failed (${res.status}): ${text.slice(0, 120)}`);
+  if (!data.key || !data.url) throw new Error("caption returned no video");
+  return { key: data.key, url: data.url };
+}
+
+// MOTION_WAIT → poll Motion-Control STATUS → on done: mark DONE (fast). The slow
+// caption + Spaces copy + Drive delivery happens in a separate bounded pass
+// (finalizeDone) so a long caption can't stall the tick or strand a reel on restart.
 async function checkMotion(job: any) {
   if (!job.motionRecordId) return; // claimed to MOTION_WAIT but row not created yet
   const fields = await getRecord(AT_TABLES.MOTION, job.motionRecordId);
@@ -147,38 +171,62 @@ async function checkMotion(job: any) {
   if (!videoUrl) return;
 
   // Atomic claim: MOTION_WAIT → DONE (winner only). finalVideoUrl = the RunningHub
-  // URL immediately, so the reel is never lost even if the copy step below fails.
-  const claimed = await prisma.recreation.updateMany({
+  // URL so the reel plays immediately; finalKey stays null → picked up for delivery.
+  await prisma.recreation.updateMany({
     where: { id: job.id, status: "MOTION_WAIT" },
-    data: { status: "DONE", stage: "Done", finalVideoUrl: videoUrl },
+    data: { status: "DONE", stage: "Adding captions…", finalVideoUrl: videoUrl },
   });
-  if (claimed.count === 0) return; // another tick already finalized this
+}
 
-  // Best-effort: download once → permanent Spaces copy + deliver to Google Drive.
-  // The RunningHub link expires, so the Spaces copy is what the CRM plays. Any
-  // failure here is non-fatal — the job stays DONE and we record the reason.
+// DONE-but-not-delivered → auto-caption, store a permanent copy, deliver to Drive.
+// Claimed atomically so overlapping ticks can't double-caption. Best-effort: on any
+// failure the reel stays DONE (playable via the RunningHub URL) and we note why.
+async function finalizeDone(job: any) {
+  const claimed = await prisma.recreation.updateMany({
+    where: { id: job.id, status: "DONE", finalKey: null, NOT: { stage: "Captioning…" } },
+    data: { stage: "Captioning…" },
+  });
+  if (claimed.count === 0) return; // another tick is delivering this one
+
+  const videoUrl = job.finalVideoUrl as string;
   try {
-    const bytes = await downloadReel(videoUrl);
-    const finalKey = await putBuffer(`recreate/${job.id}-final.mp4`, bytes, "video/mp4");
-    let driveUrl: string | null = null;
-    let driveError: string | null = null;
-    // Name the reel by date + time (Serbia, UTC+2) and drop it into a per-day
-    // folder in Drive, so finished reels are sortable and don't pile up.
+    let bytes: Buffer;
+    let finalKey: string;
+    let captionError: string | null = null;
+    try {
+      const cap = await klingCaption(videoUrl);
+      bytes = await downloadReel(cap.url);
+      finalKey = cap.key; // captioned reel already stored in Spaces by the caption service
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      // "no speech" is normal for non-talking reels — deliver uncaptioned, no alarm.
+      if (!/no speech/i.test(msg)) captionError = `captions skipped: ${msg}`;
+      bytes = await downloadReel(videoUrl);
+      finalKey = await putBuffer(`recreate/${job.id}-final.mp4`, bytes, "video/mp4");
+    }
+
+    // Name the reel by date + time (Serbia, UTC+2) and drop it into a per-day folder.
     const t = new Date(Date.now() + 2 * 3600 * 1000);
     const p2 = (n: number) => String(n).padStart(2, "0");
     const day = `${t.getUTCFullYear()}-${p2(t.getUTCMonth() + 1)}-${p2(t.getUTCDate())}`;
     const stamp = `${day} ${p2(t.getUTCHours())}-${p2(t.getUTCMinutes())}`;
+    let driveUrl: string | null = null;
+    let driveError: string | null = null;
     try {
-      driveUrl = await maybeUploadToDrive(`Poppy ${stamp}.mp4`, bytes, { subfolder: day }); // null if not connected
+      driveUrl = await maybeUploadToDrive(`Poppy ${stamp}.mp4`, bytes, { subfolder: day });
     } catch (e) {
       driveError = e instanceof Error ? e.message : String(e);
     }
-    await prisma.recreation.update({ where: { id: job.id }, data: { finalKey, driveUrl, driveError } });
+    await prisma.recreation.update({
+      where: { id: job.id },
+      data: { finalKey, driveUrl, driveError: driveError || captionError, stage: "Done" },
+    });
   } catch (e) {
+    // Couldn't even fetch the reel — revert stage so a later tick retries.
     await prisma.recreation
-      .update({
-        where: { id: job.id },
-        data: { driveError: `save failed: ${e instanceof Error ? e.message : String(e)}` },
+      .updateMany({
+        where: { id: job.id, finalKey: null },
+        data: { stage: "Done", driveError: `save failed: ${e instanceof Error ? e.message : String(e)}` },
       })
       .catch(() => {});
   }
@@ -187,7 +235,7 @@ async function checkMotion(job: any) {
 // Advance every in-flight job by one step. Safe to call repeatedly. New RunningHub
 // tasks (image prep + motion submit) are only started while under MAX_INFLIGHT, so
 // we never fire more concurrent renders than the account allows.
-export async function tick(): Promise<{ prepped: number; imageChecked: number; motionChecked: number; submitted: number }> {
+export async function tick(): Promise<{ prepped: number; imageChecked: number; motionChecked: number; submitted: number; finalized: number }> {
   // Self-heal: a job claimed to MOTION_WAIT whose Motion-Control row never got
   // created (process died mid-handoff) → return it to IMAGE_DONE to re-submit.
   await prisma.recreation.updateMany({
@@ -199,10 +247,23 @@ export async function tick(): Promise<{ prepped: number; imageChecked: number; m
     data: { status: "IMAGE_DONE", stage: "Waiting for a render slot…" },
   });
 
+  // Self-heal: a delivery that died mid-caption (stage "Captioning…", no finalKey)
+  // → reset the stage so it's re-attempted.
+  await prisma.recreation.updateMany({
+    where: {
+      status: "DONE",
+      finalKey: null,
+      stage: "Captioning…",
+      updatedAt: { lt: new Date(Date.now() - 6 * 60 * 1000) },
+    },
+    data: { stage: "Adding captions…" },
+  });
+
   let prepped = 0,
     imageChecked = 0,
     motionChecked = 0,
-    submitted = 0;
+    submitted = 0,
+    finalized = 0;
 
   // How many RunningHub tasks are running right now (image + motion). New work is
   // only started up to the remaining budget — this is the concurrency cap.
@@ -269,7 +330,19 @@ export async function tick(): Promise<{ prepped: number; imageChecked: number; m
     }
   }
 
-  return { prepped, imageChecked, motionChecked, submitted };
+  // Caption + deliver finished reels (bounded — captioning is slow). Each reel is
+  // already DONE and playable; this just adds captions + the permanent/Drive copy.
+  const toFinalize = await prisma.recreation.findMany({
+    where: { status: "DONE", finalKey: null, NOT: { stage: "Captioning…" } },
+    take: MAX_CAPTION_PER_TICK,
+    orderBy: { updatedAt: "asc" },
+  });
+  for (const j of toFinalize) {
+    await finalizeDone(j); // handles its own errors
+    finalized++;
+  }
+
+  return { prepped, imageChecked, motionChecked, submitted, finalized };
 }
 
 // Re-run a FAILED job. If the Poppy image already exists (the common case — the
