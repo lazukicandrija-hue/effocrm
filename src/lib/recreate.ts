@@ -296,6 +296,17 @@ async function finalizeDone(job: any) {
 // tasks (image prep + motion submit) are only started while under MAX_INFLIGHT, so
 // we never fire more concurrent renders than the account allows.
 export async function tick(): Promise<{ prepped: number; imageChecked: number; motionChecked: number; submitted: number; finalized: number }> {
+  // Self-heal: a reel stranded mid-download (PREPPING) — the prep step was cut
+  // off (redeploy / DB blip) and left it orphaned. prep can't run longer than
+  // ~2 min, so anything older is dead → return it to QUEUED to re-download.
+  await prisma.recreation.updateMany({
+    where: {
+      status: "PREPPING",
+      updatedAt: { lt: new Date(Date.now() - 5 * 60 * 1000) },
+    },
+    data: { status: "QUEUED", stage: "Queued" },
+  });
+
   // Self-heal: a job claimed to MOTION_WAIT whose Motion-Control row never got
   // created (process died mid-handoff) → return it to IMAGE_DONE to re-submit.
   await prisma.recreation.updateMany({
