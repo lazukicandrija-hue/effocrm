@@ -136,7 +136,9 @@ export default function DashboardPage() {
     try {
       const res = await fetch("/api/models");
       const data = await res.json();
-      setModels(data);
+      // On a DB blip /api/models returns {error}; storing that object would crash
+      // `models.map` and white-screen the page. Only ever hold an array.
+      setModels(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Failed to fetch models:", error);
     }
