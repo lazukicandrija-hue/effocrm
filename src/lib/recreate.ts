@@ -139,7 +139,7 @@ async function downloadReel(url: string): Promise<Buffer> {
 
 // Captioning is async on the prompt service (whisper + ffmpeg outlast the HTTP
 // request timeout): submit returns a job id; we poll it across ticks.
-async function klingCaptionSubmit(url: string): Promise<string> {
+export async function klingCaptionSubmit(url: string): Promise<string> {
   const res = await fetch(`${KLING_URL}/caption`, {
     method: "POST",
     headers: { Authorization: `Bearer ${KLING_SECRET}`, "Content-Type": "application/json" },
@@ -158,7 +158,7 @@ async function klingCaptionSubmit(url: string): Promise<string> {
   return data.job_id as string;
 }
 
-async function klingCaptionPoll(
+export async function klingCaptionPoll(
   jobId: string
 ): Promise<{ status: string; key?: string; url?: string; error?: string }> {
   const res = await fetch(`${KLING_URL}/caption/${jobId}`, {

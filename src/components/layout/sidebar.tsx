@@ -23,6 +23,7 @@ import {
   Wand2,
   ThumbsDown,
   Smartphone,
+  Type,
 } from "lucide-react";
 
 const navigation = [
@@ -33,6 +34,7 @@ const navigation = [
   { name: "What's Working", href: "/whats-working", icon: TrendingUp },
   { name: "First Frame", href: "/prompter", icon: Frame },
   { name: "Auto-Recreate", href: "/auto-recreate", icon: Wand2 },
+  { name: "Captioner", href: "/captioner", icon: Type },
   { name: "Competitors", href: "/competitors", icon: Swords },
   { name: "Marketing", href: "/marketing", icon: Lightbulb },
   { name: "Bad Outputs", href: "/bad-outputs", icon: ThumbsDown },
