@@ -54,6 +54,29 @@ interface DashboardStats {
 
 const FIXED_NICHES = ["Golf", "Talking", "Omegle", "Podcast", "Dancing", "Motion Control"];
 
+// "Data from Jul 23, 8:53 PM · updated 12 min ago" — when the scraper last pulled.
+function fmtWhen(iso: string | null): { abs: string; ago: string } | null {
+  if (!iso) return null;
+  const t = new Date(iso).getTime();
+  if (!t) return null;
+  const abs = new Date(t).toLocaleString([], {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  const mins = Math.max(0, Math.round((Date.now() - t) / 60000));
+  const ago =
+    mins < 1
+      ? "just now"
+      : mins < 60
+      ? `${mins} min ago`
+      : mins < 1440
+      ? `${Math.round(mins / 60)}h ago`
+      : `${Math.round(mins / 1440)}d ago`;
+  return { abs, ago };
+}
+
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -62,6 +85,7 @@ export default function DashboardPage() {
   const [models, setModels] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [statsError, setStatsError] = useState(false);
+  const [, setNowTick] = useState(0); // bumps every 60s so the "X ago" stays fresh
   // Latest-reels feed (Instagram-style grid of newly-scraped reels)
   const [reels, setReels] = useState<any[]>([]);
   const [reelsLoading, setReelsLoading] = useState(true);
@@ -182,6 +206,12 @@ export default function DashboardPage() {
     fetchAccountsList();
   }, [fetchModels, fetchAccountsList]);
 
+  // Keep the "updated X ago" label current without re-fetching.
+  useEffect(() => {
+    const id = setInterval(() => setNowTick((n) => n + 1), 60000);
+    return () => clearInterval(id);
+  }, []);
+
   useEffect(() => {
     setLoading(true);
     fetchStats();
@@ -268,6 +298,25 @@ export default function DashboardPage() {
             <p className="text-sm text-gray-500 mt-1">
               Overview of your Instagram accounts performance
             </p>
+            {(() => {
+              const when = fmtWhen(stats?.lastSyncedAt ?? null);
+              return (
+                <p className="flex items-center gap-1.5 text-xs text-gray-400 mt-1.5">
+                  <Clock className="h-3 w-3 flex-shrink-0" />
+                  {refreshing ? (
+                    <span className="text-[#d4a853] font-medium">Pulling fresh data…</span>
+                  ) : when ? (
+                    <span>
+                      Data from{" "}
+                      <span className="font-medium text-gray-600">{when.abs}</span>{" "}
+                      · updated {when.ago}
+                    </span>
+                  ) : (
+                    <span>Not synced yet — press Refresh now</span>
+                  )}
+                </p>
+              );
+            })()}
           </div>
 
           <div className="flex items-center gap-3">
