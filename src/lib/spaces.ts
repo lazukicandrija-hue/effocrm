@@ -5,7 +5,12 @@
 //   SPACES_KEY      the Spaces access key
 //   SPACES_SECRET   the Spaces secret key
 //   SPACES_ENDPOINT (optional) defaults to https://<region>.digitaloceanspaces.com
-import { S3Client, GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
+import {
+  S3Client,
+  GetObjectCommand,
+  PutObjectCommand,
+  DeleteObjectCommand,
+} from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 export const SPACES_REGION = process.env.SPACES_REGION || "fra1";
@@ -41,6 +46,11 @@ export async function putBuffer(
     new PutObjectCommand({ Bucket: SPACES_BUCKET, Key: key, Body: body, ContentType: contentType })
   );
   return key;
+}
+
+// Best-effort delete of a stored object (e.g. when a reference image is removed).
+export async function deleteObject(key: string): Promise<void> {
+  await spaces().send(new DeleteObjectCommand({ Bucket: SPACES_BUCKET, Key: key }));
 }
 
 let _client: S3Client | null = null;

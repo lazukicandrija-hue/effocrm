@@ -197,6 +197,20 @@ model BadOutput {
   @@index([createdAt])
 }
 
+// Reusable starting/reference images for image-to-video, organised into niche
+// "folders". Copied from the CRM straight into Airtable's image field.
+model ReferenceImage {
+  id        String   @id @default(cuid())
+  imageKey  String              // Spaces object key
+  niche     String              // folder name (a niche, or anything custom)
+  label     String?             // optional name/note
+  addedBy   String?
+  createdAt DateTime @default(now())
+
+  @@index([niche])
+  @@index([createdAt])
+}
+
 // An auto-recreation job: a source reel → Poppy image (image-edit workflow) →
 // final reel (Motion-Control workflow), driven through the RUNNING-HUB Airtable
 // base. The CRM acts as a "robot VA": it only CREATES rows + ticks START, then

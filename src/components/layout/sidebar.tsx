@@ -24,6 +24,7 @@ import {
   ThumbsDown,
   Smartphone,
   Type,
+  Images,
 } from "lucide-react";
 
 const navigation = [
@@ -35,6 +36,7 @@ const navigation = [
   { name: "First Frame", href: "/prompter", icon: Frame },
   { name: "Auto-Recreate", href: "/auto-recreate", icon: Wand2 },
   { name: "Captioner", href: "/captioner", icon: Type },
+  { name: "Reference Images", href: "/reference-images", icon: Images },
   { name: "Competitors", href: "/competitors", icon: Swords },
   { name: "Marketing", href: "/marketing", icon: Lightbulb },
   { name: "Bad Outputs", href: "/bad-outputs", icon: ThumbsDown },

@@ -185,6 +185,22 @@ const statements = [
     `CREATE INDEX IF NOT EXISTS "DeletedAccount_igUsername_idx" ON "DeletedAccount"("igUsername");`,
   ],
   [
+    "ReferenceImage table",
+    `CREATE TABLE IF NOT EXISTS "ReferenceImage" (
+       "id" TEXT NOT NULL,
+       "imageKey" TEXT NOT NULL,
+       "niche" TEXT NOT NULL,
+       "label" TEXT,
+       "addedBy" TEXT,
+       "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+       CONSTRAINT "ReferenceImage_pkey" PRIMARY KEY ("id")
+     );`,
+  ],
+  [
+    "ReferenceImage_niche_idx",
+    `CREATE INDEX IF NOT EXISTS "ReferenceImage_niche_idx" ON "ReferenceImage"("niche");`,
+  ],
+  [
     "ScraperControl table",
     `CREATE TABLE IF NOT EXISTS "ScraperControl" (
        "id" TEXT NOT NULL,
