@@ -4,7 +4,7 @@
 // (guaranteed to work with the existing key). Bump BRAIN_MODEL to a stronger
 // model any time for sharper ideas.
 const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY || "";
-export const BRAIN_MODEL = process.env.BRAIN_MODEL || "qwen/qwen-2.5-72b-instruct";
+export const BRAIN_MODEL = process.env.BRAIN_MODEL || "openai/gpt-4o-mini";
 
 export function llmConfigured(): boolean {
   return !!OPENROUTER_KEY;
@@ -23,7 +23,7 @@ export async function chat(
       "Content-Type": "application/json",
       Authorization: `Bearer ${OPENROUTER_KEY}`,
       "HTTP-Referer": "https://effortless-crm.ondigitalocean.app",
-      "X-Title": "Effortless CRM — Content Brain",
+      "X-Title": "Effortless CRM Content Brain",
     },
     body: JSON.stringify({
       model: opts.model || BRAIN_MODEL,
