@@ -25,10 +25,12 @@ import {
   Smartphone,
   Type,
   Images,
+  Brain,
 } from "lucide-react";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { name: "Content Brain", href: "/brain", icon: Brain },
   { name: "Accounts", href: "/accounts", icon: Camera },
   { name: "Phones", href: "/phones", icon: Smartphone },
   { name: "Reels Analytics", href: "/reels", icon: Film },
