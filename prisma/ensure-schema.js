@@ -209,6 +209,27 @@ const statements = [
        CONSTRAINT "ScraperControl_pkey" PRIMARY KEY ("id")
      );`,
   ],
+  [
+    "BrainExample table",
+    `CREATE TABLE IF NOT EXISTS "BrainExample" (
+       "id" TEXT NOT NULL,
+       "prompt" TEXT NOT NULL,
+       "niche" TEXT,
+       "imageKey" TEXT,
+       "imageDesc" TEXT,
+       "reelUrl" TEXT,
+       "reelShortcode" TEXT,
+       "views" INTEGER,
+       "note" TEXT,
+       "addedBy" TEXT,
+       "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+       CONSTRAINT "BrainExample_pkey" PRIMARY KEY ("id")
+     );`,
+  ],
+  [
+    "BrainExample_createdAt_idx",
+    `CREATE INDEX IF NOT EXISTS "BrainExample_createdAt_idx" ON "BrainExample"("createdAt");`,
+  ],
 ];
 
 async function main() {

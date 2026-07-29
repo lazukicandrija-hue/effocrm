@@ -6,8 +6,53 @@
 const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY || "";
 export const BRAIN_MODEL = process.env.BRAIN_MODEL || "openai/gpt-4o-mini";
 
+// Vision model — describes reference images so the text brain can "see" them.
+export const VLM_MODEL = process.env.OPENROUTER_VLM_MODEL || "qwen/qwen3-vl-32b-instruct";
+
 export function llmConfigured(): boolean {
   return !!OPENROUTER_KEY;
+}
+
+// Describe a reference image in a couple of concrete, filmable sentences so a text
+// model can learn from it. Deliberately skips appearance (she's always Poppy).
+// Best-effort: returns "" on any failure.
+export async function describeImage(imageUrl: string): Promise<string> {
+  if (!OPENROUTER_KEY) return "";
+  try {
+    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${OPENROUTER_KEY}`,
+        "HTTP-Referer": "https://effortless-crm.ondigitalocean.app",
+        "X-Title": "Effortless CRM Content Brain",
+      },
+      body: JSON.stringify({
+        model: VLM_MODEL,
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text:
+                  "Describe this reference image for an AI-video reel in 1-2 concrete sentences: the setting/location, her pose and action, the camera angle, and the lighting/mood. Do NOT mention hair color, face, skin, or clothing colors — only the scene, pose, and vibe.",
+              },
+              { type: "image_url", image_url: { url: imageUrl } },
+            ],
+          },
+        ],
+        temperature: 0.3,
+        max_tokens: 200,
+      }),
+      signal: AbortSignal.timeout(45000),
+    });
+    if (!res.ok) return "";
+    const data = await res.json();
+    return (data?.choices?.[0]?.message?.content || "").trim().slice(0, 500);
+  } catch {
+    return "";
+  }
 }
 
 type Msg = { role: "system" | "user" | "assistant"; content: string };

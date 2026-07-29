@@ -211,6 +211,26 @@ model ReferenceImage {
   @@index([createdAt])
 }
 
+// A curated "this worked" example that teaches the Content Brain: the prompt used,
+// the reference image (+ a vision description of it), and the finished reel (+ views
+// auto-pulled from the scraper when it's a tracked account). Fed back as few-shot.
+model BrainExample {
+  id            String   @id @default(cuid())
+  prompt        String   @db.Text          // the Seedance/Kling prompt used
+  niche         String?                     // setting/niche
+  imageKey      String?                     // Spaces key of the reference image
+  imageDesc     String?  @db.Text           // vision-model description of the image
+  reelUrl       String?                     // link to the finished reel
+  reelShortcode String?                     // extracted, to match scraper data
+  views         Int?                        // auto-pulled from scraper if tracked
+  note          String?  @db.Text           // optional user note
+  addedBy       String?
+  createdAt     DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([views])
+}
+
 // An auto-recreation job: a source reel → Poppy image (image-edit workflow) →
 // final reel (Motion-Control workflow), driven through the RUNNING-HUB Airtable
 // base. The CRM acts as a "robot VA": it only CREATES rows + ticks START, then

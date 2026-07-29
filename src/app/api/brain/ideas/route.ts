@@ -57,6 +57,8 @@ GOOD seedancePrompt examples (match this style and length):
 - "Locked-off medium shot at the drive-thru window, she holds a bag out toward the lens, pulls it back for a teasing beat with a grin, then leans out the window closer to camera. Warm evening light, soft-focus background."
 - "Static POV across a café counter, she finishes a matcha and slides it over, taps the lid, glances down then back up with a slow smile as she leans in. Cozy indoor light, subtle push-in."
 
+If PROVEN EXAMPLES from the user's own reels are included below, treat them as the SINGLE most important guide: your hooks and seedancePrompts should feel written by the same person, in the same style, structure and length, and you should lean hardest toward the highest-view ones.
+
 Return STRICT JSON only, no prose, in this exact shape:
 {"ideas":[{"hook":"the on-screen text / first line that stops the scroll (punchy, under 90 chars)","concept":"1-2 sentences: what the reel is and why it works","niche":"which job/setting","seedancePrompt":"a motion-only prompt following the rules above","referenceImage":"which reference-image folder to start from","why":"one line tying it to what's performing"}]}`;
 
@@ -140,9 +142,35 @@ export async function POST(req: NextRequest) {
     new Set([...SEED_NICHES, ...refs.map((r) => r.niche?.trim()).filter(Boolean) as string[]])
   );
 
+  // --- Context 3: the user's own saved examples (the strongest signal) ---
+  let examples = await prisma.brainExample
+    .findMany({
+      orderBy: [{ views: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
+      take: 12,
+      select: { prompt: true, niche: true, imageDesc: true, views: true, note: true },
+    })
+    .catch(() => [] as Array<{ prompt: string; niche: string | null; imageDesc: string | null; views: number | null; note: string | null }>);
+  if (focusNiche) {
+    const fl = focusNiche.toLowerCase();
+    const inNiche = examples.filter((e) => (e.niche || "").toLowerCase().includes(fl));
+    if (inNiche.length) examples = inNiche;
+  }
+  const exampleLines = examples.slice(0, 8).map((e) => {
+    const bits = [`- [${e.niche || "general"}]`];
+    if (typeof e.views === "number") bits.push(`${e.views.toLocaleString()} views`);
+    bits.push(`prompt: "${e.prompt.replace(/\n/g, " ").slice(0, 400)}"`);
+    if (e.imageDesc) bits.push(`started from: ${e.imageDesc.replace(/\n/g, " ").slice(0, 200)}`);
+    if (e.note) bits.push(`note: ${e.note.replace(/\n/g, " ").slice(0, 150)}`);
+    return bits.join(" | ");
+  });
+
   // --- Assemble the user message ---
   const parts: string[] = [];
   parts.push(`NICHES / SETTINGS AVAILABLE: ${niches.join(", ")}`);
+  if (exampleLines.length)
+    parts.push(
+      `PROVEN EXAMPLES FROM YOUR OWN REELS — copy this style, structure and length closely; higher views = lean harder into it:\n${exampleLines.join("\n")}`
+    );
   if (nicheLines.length)
     parts.push(`NICHE PERFORMANCE (higher avg = make more of it):\n${nicheLines.join("\n")}`);
   if (reelLines.length) parts.push(`TOP-PERFORMING REELS RIGHT NOW:\n${reelLines.join("\n")}`);
