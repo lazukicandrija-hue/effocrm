@@ -115,9 +115,6 @@ export default function PoppyFrame() {
     }
   };
 
-  const btnGhost =
-    "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-white/10 bg-white/5 text-gray-200 hover:bg-white/10 transition-colors";
-
   return (
     <div className="mt-10 pt-8 border-t border-white/10">
       <h2 className="text-lg font-semibold flex items-center gap-2" style={{ color: "#f5e6c8" }}>
@@ -182,19 +179,27 @@ export default function PoppyFrame() {
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={job.url} alt="Poppy" className="max-h-[46vh] rounded-lg border-2 border-[#d4a853]/40 bg-black object-contain" />
                   </div>
-                  <div className="flex flex-wrap justify-center gap-2">
+                  <div className="flex justify-center gap-1.5">
                     <button
                       onClick={() => copyImage(job)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#d4a853] text-black hover:bg-[#e0b863]"
+                      title="Copy image"
+                      className="p-1.5 rounded-md bg-[#d4a853] text-black hover:bg-[#e0b863] transition-colors"
                     >
-                      {copied === "img:" + job.id ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                      {copied === "img:" + job.id ? "Copied!" : "Copy image"}
+                      {copied === "img:" + job.id ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                     </button>
-                    <button onClick={() => copyLink(job)} className={btnGhost}>
-                      {copied === "link:" + job.id ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Link2 className="h-3.5 w-3.5" />} Copy link
+                    <button
+                      onClick={() => copyLink(job)}
+                      title="Copy link"
+                      className="p-1.5 rounded-md border border-white/10 bg-white/5 text-gray-200 hover:bg-white/10 transition-colors"
+                    >
+                      {copied === "link:" + job.id ? <Check className="h-4 w-4 text-emerald-400" /> : <Link2 className="h-4 w-4" />}
                     </button>
-                    <button onClick={() => download(job)} className={btnGhost}>
-                      <Download className="h-3.5 w-3.5" /> Download
+                    <button
+                      onClick={() => download(job)}
+                      title="Download"
+                      className="p-1.5 rounded-md border border-white/10 bg-white/5 text-gray-200 hover:bg-white/10 transition-colors"
+                    >
+                      <Download className="h-4 w-4" />
                     </button>
                   </div>
                 </div>
