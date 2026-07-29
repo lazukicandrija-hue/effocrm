@@ -9,7 +9,21 @@ import { chat, extractJson, llmConfigured, BRAIN_MODEL } from "@/lib/llm";
 
 export const dynamic = "force-dynamic";
 
-const NICHES = ["Golf", "Talking", "Omegle", "Podcast", "Dancing", "Motion Control"];
+// Poppy's current content lane — relatable service-industry "it girl" settings.
+// This is just the seed; the live list also folds in whatever reference-image
+// folders exist, so it always matches what's actually being made.
+const SEED_NICHES = ["McDonald's", "Starbucks", "Chipotle", "Waitress", "Delivery Girl", "Cashier"];
+
+async function availableNiches(): Promise<string[]> {
+  const set = new Set<string>(SEED_NICHES);
+  try {
+    const refs = await prisma.referenceImage.groupBy({ by: ["niche"], _count: { _all: true } });
+    for (const r of refs) if (r.niche?.trim()) set.add(r.niche.trim());
+  } catch {
+    /* reference table optional */
+  }
+  return Array.from(set);
+}
 
 function median(nums: number[]): number {
   if (!nums.length) return 0;
@@ -20,26 +34,37 @@ function median(nums: number[]): number {
 
 const SYSTEM = `You are the Content Brain for Effortless — an agency that runs Instagram accounts for an AI model named "Poppy" (a blonde woman). Content is faceless/AI-generated short-form reels made image-to-video with Seedance 2.0 / Kling: every reel starts from a reference image of Poppy and is animated with a MOTION prompt.
 
-NICHES you work in: Golf, Talking, Omegle, Podcast, Dancing, Motion Control.
+WHO POPPY IS ON CAMERA:
+- A cute, flirty girl-next-door who works relatable everyday service jobs — the fast-food cashier, the Starbucks/matcha barista, the Chipotle line, the waitress, the delivery girl. Think "the pretty girl working the counter who clearly likes you."
+- The winning formula is POV / relatable: the viewer is the customer she is quietly flirting with. Uniform or workplace setting, a little spicy, very approachable.
 
 CONTENT LANE — read carefully:
-- Flirty, suggestive, "girl-next-door but a little spicy." Teasing, NOT explicit.
-- NEVER describe nudity, explicit acts, or a reveal of private body parts. If a winning concept leans on a reveal, soften it to clothed teasing (a glance, a lip bite, a slow turn, an over-the-shoulder look).
-- The goal is a scroll-stopping tease that makes people follow — not porn.
+- Flirty, suggestive, teasing — NOT explicit. Clothed, playful, "she's into you."
+- NEVER describe nudity, explicit acts, or a reveal of private body parts. If a concept leans on a reveal, soften it to clothed teasing (a glance, a lip bite, a slow lean over the counter, an over-the-shoulder look).
+- Goal: a scroll-stopping tease that makes people follow — not porn.
+
+HOOKS should read like POV / relatable on-screen captions, e.g. "POV: your cashier can't stop staring at you", "when the Starbucks girl writes her number on your cup", "she gave you extra fries for a reason". Punchy, under 90 chars.
 
 SEEDANCE / KLING PROMPT RULES (this is exactly how the "seedancePrompt" field must be written):
 - MOTION ONLY. Describe the camera move + her body motion + the action + the setting/vibe. One continuous shot.
-- NEVER describe her appearance. She is ALWAYS Poppy and always blonde — do NOT state hair color, face, skin, body, or outfit colors, and do not name clothing colors. The reference image already fixes how she looks.
-- Be concrete and filmable: a real camera movement (dolly-in, handheld push, locked-off, slow pan, orbit), a specific physical motion, and a lighting/mood cue.
+- NEVER describe her appearance. She is ALWAYS Poppy and always blonde — do NOT state hair color, face, skin, body, or outfit/uniform colors. The reference image already fixes how she looks.
+- Put her in the JOB: behind the counter, at the drive-thru window, making a drink, carrying a tray, leaning to the car window.
+- Be concrete and filmable: a real camera move (POV push-in, handheld, locked-off, slow pan), a specific physical motion, and a lighting/mood cue.
 - Keep it teasing, never explicit.
 
 GOOD seedancePrompt examples (match this style and length):
-- "Slow dolly-in as she lines up a putt on a sunlit green, hips swaying as she settles her stance; she glances back over her shoulder at the camera with a playful smirk, then bends to place the ball. Handheld feel, shallow depth of field, warm afternoon light."
-- "Locked-off medium shot, she rolls her body to a slow beat, dragging one hand from her waist up through her hair, hips moving in a figure-eight, turning away then snapping back to face the lens. Moody lighting, slight motion blur."
-- "Static close-up, she leans toward the lens like she's telling a secret, biting her lip mid-sentence, then pulls back with a slow smile. Subtle push-in, soft indoor light."
+- "POV push-in toward the counter as she slides a drink forward, leaning on her elbows with a playful smirk, biting her lip as she glances up at the camera, then tucking a strand of hair behind her ear. Bright fast-food lighting, handheld feel, shallow depth of field."
+- "Locked-off medium shot at the drive-thru window, she holds a bag out toward the lens, pulls it back for a teasing beat with a grin, then leans out the window closer to camera. Warm evening light, soft-focus background."
+- "Static POV across a café counter, she finishes a matcha and slides it over, taps the lid, glances down then back up with a slow smile as she leans in. Cozy indoor light, subtle push-in."
 
 Return STRICT JSON only, no prose, in this exact shape:
-{"ideas":[{"hook":"the on-screen text / first line that stops the scroll (punchy, under 90 chars)","concept":"1-2 sentences: what the reel is and why it works","niche":"one of the niches","seedancePrompt":"a motion-only prompt following the rules above","referenceImage":"which reference-image folder/niche to start from","why":"one line tying it to what's performing"}]}`;
+{"ideas":[{"hook":"the on-screen text / first line that stops the scroll (punchy, under 90 chars)","concept":"1-2 sentences: what the reel is and why it works","niche":"which job/setting","seedancePrompt":"a motion-only prompt following the rules above","referenceImage":"which reference-image folder to start from","why":"one line tying it to what's performing"}]}`;
+
+export async function GET() {
+  const session = await getServerSession(authOptions);
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  return NextResponse.json({ niches: await availableNiches() });
+}
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -54,7 +79,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({} as any));
   const count = Math.min(Math.max(Number(body.count) || 6, 1), 12);
   const focusNiche: string | null =
-    body.niche && NICHES.includes(body.niche) ? body.niche : null;
+    body.niche && String(body.niche).trim() ? String(body.niche).trim().slice(0, 60) : null;
   const refine: string = (body.refine || "").toString().slice(0, 500);
 
   // --- Context 1: top-performing reels (what's actually landing) ---
@@ -92,7 +117,11 @@ export async function POST(req: NextRequest) {
     .map((x) => `- ${x.n}: ~${x.avg.toLocaleString()} avg views`);
 
   let topReels = reels;
-  if (focusNiche) topReels = reels.filter((r) => r.account.niche.includes(focusNiche));
+  if (focusNiche) {
+    const fl = focusNiche.toLowerCase();
+    const matched = reels.filter((r) => r.account.niche.some((n) => n.toLowerCase().includes(fl)));
+    if (matched.length) topReels = matched; // else keep the global top set as a fallback
+  }
   const reelLines = topReels.slice(0, 20).map((r) => {
     const niche = r.account.niche.length ? r.account.niche.join(", ") : "n/a";
     const over = Math.round((r.currentViews / (base[r.account.id] || 1)) * 10) / 10;
@@ -106,22 +135,23 @@ export async function POST(req: NextRequest) {
   const refs = await prisma.referenceImage
     .groupBy({ by: ["niche"], _count: { _all: true } })
     .catch(() => [] as Array<{ niche: string; _count: { _all: number } }>);
-  const refLines = refs
-    .map((r) => `- ${r.niche}: ${r._count._all} image(s)`)
-    .sort();
+  const refLines = refs.map((r) => `- ${r.niche}: ${r._count._all} image(s)`).sort();
+  const niches = Array.from(
+    new Set([...SEED_NICHES, ...refs.map((r) => r.niche?.trim()).filter(Boolean) as string[]])
+  );
 
   // --- Assemble the user message ---
   const parts: string[] = [];
-  parts.push(`NICHES AVAILABLE: ${NICHES.join(", ")}`);
+  parts.push(`NICHES / SETTINGS AVAILABLE: ${niches.join(", ")}`);
   if (nicheLines.length)
     parts.push(`NICHE PERFORMANCE (higher avg = make more of it):\n${nicheLines.join("\n")}`);
   if (reelLines.length) parts.push(`TOP-PERFORMING REELS RIGHT NOW:\n${reelLines.join("\n")}`);
-  else parts.push(`(No scraped reel data yet — lean on the niches and general short-form best practices.)`);
+  else parts.push(`(No scraped reel data yet — lean on the settings above and general short-form best practices.)`);
   if (refLines.length)
     parts.push(
       `REFERENCE IMAGES ON HAND (prefer starting ideas from folders that already have images):\n${refLines.join("\n")}`
     );
-  if (focusNiche) parts.push(`FOCUS: only generate ideas for the "${focusNiche}" niche.`);
+  if (focusNiche) parts.push(`FOCUS: only generate ideas for the "${focusNiche}" setting.`);
   if (refine) parts.push(`EXTRA DIRECTION FROM THE USER: ${refine}`);
   parts.push(
     `Generate ${count} fresh reel ideas as JSON. Skew toward what's performing. Each seedancePrompt must be motion-only (no appearance) and teasing, not explicit.`
@@ -148,7 +178,7 @@ export async function POST(req: NextRequest) {
     .map((i) => ({
       hook: String(i.hook || "").slice(0, 200),
       concept: String(i.concept || "").slice(0, 600),
-      niche: NICHES.includes(i.niche) ? i.niche : focusNiche || String(i.niche || ""),
+      niche: String(i.niche || focusNiche || "").slice(0, 60),
       seedancePrompt: String(i.seedancePrompt || "").slice(0, 1200),
       referenceImage: String(i.referenceImage || i.niche || "").slice(0, 120),
       why: String(i.why || "").slice(0, 300),

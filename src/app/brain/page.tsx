@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Brain, Sparkles, Copy, Check, Loader2, Images, RefreshCw } from "lucide-react";
 
-const NICHES = ["Golf", "Talking", "Omegle", "Podcast", "Dancing", "Motion Control"];
+const FALLBACK_NICHES = ["McDonald's", "Starbucks", "Chipotle", "Waitress", "Delivery Girl", "Cashier"];
 
 type Idea = {
   hook: string;
@@ -26,6 +26,18 @@ export default function BrainPage() {
   const [refine, setRefine] = useState("");
   const [copied, setCopied] = useState<number | null>(null);
   const [grounded, setGrounded] = useState<boolean | null>(null);
+  const [niches, setNiches] = useState<string[]>(FALLBACK_NICHES);
+
+  useEffect(() => {
+    fetch("/api/brain/ideas")
+      .then((r) => r.json())
+      .then((d) => {
+        if (Array.isArray(d.niches) && d.niches.length) setNiches(d.niches);
+      })
+      .catch(() => {
+        /* keep fallback */
+      });
+  }, []);
 
   const generate = useCallback(
     async (append: boolean) => {
@@ -91,7 +103,7 @@ export default function BrainPage() {
                   className="h-9 w-44 rounded-md border border-gray-200 px-3 text-sm bg-white"
                 >
                   <option value="all">All niches</option>
-                  {NICHES.map((n) => (
+                  {niches.map((n) => (
                     <option key={n} value={n}>
                       {n}
                     </option>
