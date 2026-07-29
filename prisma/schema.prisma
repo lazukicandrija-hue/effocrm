@@ -231,6 +231,24 @@ model BrainExample {
   @@index([views])
 }
 
+// A First Frame → Poppy job: reel first frame → Airtable image-edit → Poppy image.
+// Persisted + finalized by the tick loop, so the result comes back even if the page
+// is closed (the image-edit can queue for minutes behind Auto-Recreate).
+model PoppyFrame {
+  id            String   @id @default(cuid())
+  sourceUrl     String                          // the reel link
+  sourceKey     String?                          // Spaces key of the grabbed first frame
+  prompt        String?  @db.Text                // edit instruction sent to image-edit
+  imageRecordId String                           // Airtable image-edit record id
+  status        String   @default("WORKING")     // WORKING | DONE | FAILED
+  resultKey     String?                          // Spaces key of the finished Poppy image
+  error         String?  @db.Text
+  createdAt     DateTime @default(now())
+
+  @@index([status])
+  @@index([createdAt])
+}
+
 // An auto-recreation job: a source reel → Poppy image (image-edit workflow) →
 // final reel (Motion-Control workflow), driven through the RUNNING-HUB Airtable
 // base. The CRM acts as a "robot VA": it only CREATES rows + ticks START, then

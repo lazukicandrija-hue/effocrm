@@ -230,6 +230,25 @@ const statements = [
     "BrainExample_createdAt_idx",
     `CREATE INDEX IF NOT EXISTS "BrainExample_createdAt_idx" ON "BrainExample"("createdAt");`,
   ],
+  [
+    "PoppyFrame table",
+    `CREATE TABLE IF NOT EXISTS "PoppyFrame" (
+       "id" TEXT NOT NULL,
+       "sourceUrl" TEXT NOT NULL,
+       "sourceKey" TEXT,
+       "prompt" TEXT,
+       "imageRecordId" TEXT NOT NULL,
+       "status" TEXT NOT NULL DEFAULT 'WORKING',
+       "resultKey" TEXT,
+       "error" TEXT,
+       "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+       CONSTRAINT "PoppyFrame_pkey" PRIMARY KEY ("id")
+     );`,
+  ],
+  [
+    "PoppyFrame_status_idx",
+    `CREATE INDEX IF NOT EXISTS "PoppyFrame_status_idx" ON "PoppyFrame"("status");`,
+  ],
 ];
 
 async function main() {
