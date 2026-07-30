@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Loader2, Download, Copy, Check, Wand2, Link2, ArrowRight, AlertTriangle } from "lucide-react";
+import { Loader2, Download, Copy, Check, Wand2, Link2, ArrowRight, AlertTriangle, Trash2 } from "lucide-react";
 
 // First Frame → Poppy: reel link → first frame → Airtable image-edit → Poppy image.
 // Jobs are persisted server-side and finalized by the 24/7 tick loop, so results come
@@ -115,6 +115,15 @@ export default function PoppyFrame() {
     }
   };
 
+  const remove = async (job: Job) => {
+    setItems((xs) => xs.filter((j) => j.id !== job.id)); // optimistic
+    try {
+      await fetch(`/api/first-frame/poppy/${job.id}`, { method: "DELETE" });
+    } catch {
+      /* if it fails, the next poll/reload will bring it back */
+    }
+  };
+
   return (
     <div className="mt-10 pt-8 border-t border-white/10">
       <h2 className="text-lg font-semibold flex items-center gap-2" style={{ color: "#f5e6c8" }}>
@@ -201,31 +210,56 @@ export default function PoppyFrame() {
                     >
                       <Download className="h-4 w-4" />
                     </button>
+                    <button
+                      onClick={() => remove(job)}
+                      title="Delete"
+                      className="p-1.5 rounded-md border border-white/10 bg-white/5 text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
                   </div>
                 </div>
               ) : job.status === "FAILED" ? (
                 <div className="flex items-center gap-3">
-                  {job.source && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={job.source} alt="original" className="h-16 rounded-md border border-white/10 bg-black object-contain flex-shrink-0" />
-                  )}
-                  <div className="flex items-start gap-2 text-sm text-red-400">
-                    <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                    <span>{job.error || "The image-edit failed — often a content block. Try a different frame."}</span>
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    {job.source && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={job.source} alt="original" className="h-16 rounded-md border border-white/10 bg-black object-contain flex-shrink-0" />
+                    )}
+                    <div className="flex items-start gap-2 text-sm text-red-400">
+                      <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                      <span>{job.error || "The image-edit failed — often a content block. Try a different frame."}</span>
+                    </div>
                   </div>
+                  <button
+                    onClick={() => remove(job)}
+                    title="Delete"
+                    className="p-1.5 rounded-md text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-colors flex-shrink-0"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
                 </div>
               ) : (
                 <div className="flex items-center gap-3">
-                  {job.source ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={job.source} alt="original" className="h-16 rounded-md border border-white/10 bg-black object-contain flex-shrink-0" />
-                  ) : (
-                    <div className="h-16 w-12 rounded-md bg-white/5 flex-shrink-0" />
-                  )}
-                  <div className="flex items-center gap-2 text-sm text-amber-400/90">
-                    <Loader2 className="h-4 w-4 animate-spin" /> Turning it into Poppy…
-                    <span className="text-gray-500">usually 1–3 min (longer if the render queue is busy)</span>
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    {job.source ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={job.source} alt="original" className="h-16 rounded-md border border-white/10 bg-black object-contain flex-shrink-0" />
+                    ) : (
+                      <div className="h-16 w-12 rounded-md bg-white/5 flex-shrink-0" />
+                    )}
+                    <div className="flex items-center gap-2 text-sm text-amber-400/90">
+                      <Loader2 className="h-4 w-4 animate-spin" /> Turning it into Poppy…
+                      <span className="text-gray-500">usually 1–3 min (longer if the render queue is busy)</span>
+                    </div>
                   </div>
+                  <button
+                    onClick={() => remove(job)}
+                    title="Dismiss"
+                    className="p-1.5 rounded-md text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-colors flex-shrink-0"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
                 </div>
               )}
             </div>
