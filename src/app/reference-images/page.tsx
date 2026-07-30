@@ -46,7 +46,7 @@ export default function ReferenceImagesPage() {
     return Object.keys(counts).sort();
   }, [items]);
 
-  const upload = async (files: FileList | null) => {
+  const upload = useCallback(async (files: FileList | File[] | null) => {
     if (!files || !files.length) return;
     const niche = uploadNiche.trim() || "Uncategorized";
     setUploading(true);
@@ -75,7 +75,26 @@ export default function ReferenceImagesPage() {
     } finally {
       setUploading(false);
     }
-  };
+  }, [uploadNiche, fetchItems]);
+
+  // Paste an image straight from the clipboard (⌘/Ctrl+V) → uploads to the current folder.
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const imgs: File[] = [];
+      for (const it of Array.from(e.clipboardData?.items || [])) {
+        if (it.kind === "file" && it.type.startsWith("image/")) {
+          const f = it.getAsFile();
+          if (f) imgs.push(f);
+        }
+      }
+      if (imgs.length) {
+        e.preventDefault();
+        upload(imgs);
+      }
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [upload]);
 
   const copyImage = async (img: RefImg) => {
     if (!img.url) return;
@@ -174,7 +193,9 @@ export default function ReferenceImagesPage() {
                 }}
               />
             </label>
-            <span className="text-xs text-gray-400">Adds to the folder above. Uploads several at once.</span>
+            <span className="text-xs text-gray-400">
+              Adds to the folder above — or just <b className="font-semibold text-gray-500">paste an image</b> (⌘V / Ctrl+V). Uploads several at once.
+            </span>
           </CardContent>
         </Card>
 

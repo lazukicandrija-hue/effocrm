@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Loader2, Download, Copy, Check, Wand2, Link2, ArrowRight, AlertTriangle, Trash2 } from "lucide-react";
+import { Loader2, Download, Copy, Check, Wand2, Link2, ArrowRight, AlertTriangle, Trash2, RotateCcw } from "lucide-react";
 
 // First Frame → Poppy: reel link → first frame → Airtable image-edit → Poppy image.
 // Jobs are persisted server-side and finalized by the 24/7 tick loop, so results come
@@ -23,6 +23,7 @@ export default function PoppyFrame() {
   const [error, setError] = useState("");
   const [items, setItems] = useState<Job[]>([]);
   const [copied, setCopied] = useState<string | null>(null); // "img:<id>" | "link:<id>"
+  const [retrying, setRetrying] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -121,6 +122,20 @@ export default function PoppyFrame() {
       await fetch(`/api/first-frame/poppy/${job.id}`, { method: "DELETE" });
     } catch {
       /* if it fails, the next poll/reload will bring it back */
+    }
+  };
+
+  const retry = async (job: Job) => {
+    setRetrying(job.id);
+    try {
+      const r = await fetch(`/api/first-frame/poppy/${job.id}`, { method: "POST" });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || "Retry failed.");
+      await load(); // it flips back to WORKING
+    } catch (e: any) {
+      alert(e?.message || "Retry failed.");
+    } finally {
+      setRetrying(null);
     }
   };
 
@@ -231,13 +246,24 @@ export default function PoppyFrame() {
                       <span>{job.error || "The image-edit failed — often a content block. Try a different frame."}</span>
                     </div>
                   </div>
-                  <button
-                    onClick={() => remove(job)}
-                    title="Delete"
-                    className="p-1.5 rounded-md text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-colors flex-shrink-0"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button
+                      onClick={() => retry(job)}
+                      disabled={retrying === job.id}
+                      title="Retry — resubmit to image-edit"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-semibold bg-[#d4a853] text-black hover:bg-[#e0b863] disabled:opacity-50 transition-colors"
+                    >
+                      {retrying === job.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
+                      Retry
+                    </button>
+                    <button
+                      onClick={() => remove(job)}
+                      title="Delete"
+                      className="p-1.5 rounded-md text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <div className="flex items-center gap-3">
