@@ -10,6 +10,7 @@ import {
   GetObjectCommand,
   PutObjectCommand,
   DeleteObjectCommand,
+  CopyObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
@@ -51,6 +52,18 @@ export async function putBuffer(
 // Best-effort delete of a stored object (e.g. when a reference image is removed).
 export async function deleteObject(key: string): Promise<void> {
   await spaces().send(new DeleteObjectCommand({ Bucket: SPACES_BUCKET, Key: key }));
+}
+
+// Server-side copy of a stored object to a new key (no bytes through the app) —
+// used to snapshot a Poppy frame into the Reference Images library independently.
+export async function copyObject(srcKey: string, destKey: string): Promise<void> {
+  await spaces().send(
+    new CopyObjectCommand({
+      Bucket: SPACES_BUCKET,
+      CopySource: encodeURI(`${SPACES_BUCKET}/${srcKey}`),
+      Key: destKey,
+    })
+  );
 }
 
 let _client: S3Client | null = null;

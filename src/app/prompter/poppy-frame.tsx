@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Loader2, Download, Copy, Check, Wand2, Link2, ArrowRight, AlertTriangle, Trash2, RotateCcw } from "lucide-react";
+import { Loader2, Download, Copy, Check, Wand2, Link2, ArrowRight, AlertTriangle, Trash2, RotateCcw, ImagePlus } from "lucide-react";
 
 // First Frame → Poppy: reel link → first frame → Airtable image-edit → Poppy image.
 // Jobs are persisted server-side and finalized by the 24/7 tick loop, so results come
@@ -24,6 +24,11 @@ export default function PoppyFrame() {
   const [items, setItems] = useState<Job[]>([]);
   const [copied, setCopied] = useState<string | null>(null); // "img:<id>" | "link:<id>"
   const [retrying, setRetrying] = useState<string | null>(null);
+  const [niches, setNiches] = useState<string[]>([]);
+  const [refPickerFor, setRefPickerFor] = useState<string | null>(null);
+  const [refNiche, setRefNiche] = useState("");
+  const [savingRef, setSavingRef] = useState(false);
+  const [savedRef, setSavedRef] = useState<Record<string, string>>({}); // jobId → folder saved to
 
   const load = useCallback(async () => {
     try {
@@ -38,6 +43,14 @@ export default function PoppyFrame() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Folder options for "Save to Reference Images" (service-girl niches + real folders).
+  useEffect(() => {
+    fetch("/api/brain/ideas")
+      .then((r) => r.json())
+      .then((d) => Array.isArray(d.niches) && d.niches.length && setNiches(d.niches))
+      .catch(() => {});
+  }, []);
 
   // Poll every 5s only while something is still working; stop when the queue settles.
   const hasWorking = items.some((i) => i.status === "WORKING");
@@ -139,6 +152,27 @@ export default function PoppyFrame() {
     }
   };
 
+  const saveToReference = async (job: Job) => {
+    const niche = refNiche.trim();
+    if (!niche || !job.url) return;
+    setSavingRef(true);
+    try {
+      const r = await fetch(`/api/first-frame/poppy/${job.id}/save-reference`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ niche }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || "Couldn't save.");
+      setSavedRef((s) => ({ ...s, [job.id]: niche }));
+      setRefPickerFor(null);
+    } catch (e: any) {
+      alert(e?.message || "Couldn't save to Reference Images.");
+    } finally {
+      setSavingRef(false);
+    }
+  };
+
   return (
     <div className="mt-10 pt-8 border-t border-white/10">
       <h2 className="text-lg font-semibold flex items-center gap-2" style={{ color: "#f5e6c8" }}>
@@ -226,6 +260,16 @@ export default function PoppyFrame() {
                       <Download className="h-4 w-4" />
                     </button>
                     <button
+                      onClick={() => {
+                        setRefPickerFor(refPickerFor === job.id ? null : job.id);
+                        setRefNiche((prev) => prev || niches[0] || "");
+                      }}
+                      title="Save to Reference Images"
+                      className="p-1.5 rounded-md border border-white/10 bg-white/5 text-gray-200 hover:bg-white/10 transition-colors"
+                    >
+                      <ImagePlus className="h-4 w-4" />
+                    </button>
+                    <button
                       onClick={() => remove(job)}
                       title="Delete"
                       className="p-1.5 rounded-md border border-white/10 bg-white/5 text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
@@ -233,6 +277,40 @@ export default function PoppyFrame() {
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
+                  {savedRef[job.id] ? (
+                    <p className="text-center text-xs text-emerald-400">
+                      Saved to Reference Images → <b>{savedRef[job.id]}</b>
+                    </p>
+                  ) : refPickerFor === job.id ? (
+                    <div className="flex items-center justify-center gap-2">
+                      <input
+                        list="poppy-ref-niches"
+                        value={refNiche}
+                        onChange={(e) => setRefNiche(e.target.value)}
+                        placeholder="Folder (niche)"
+                        className="h-8 w-40 px-2.5 rounded-md bg-white/5 border border-white/10 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-[#d4a853]/50"
+                      />
+                      <datalist id="poppy-ref-niches">
+                        {niches.map((n) => (
+                          <option key={n} value={n} />
+                        ))}
+                      </datalist>
+                      <button
+                        onClick={() => saveToReference(job)}
+                        disabled={savingRef || !refNiche.trim()}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-semibold bg-[#d4a853] text-black hover:bg-[#e0b863] disabled:opacity-50"
+                      >
+                        {savingRef ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImagePlus className="h-3.5 w-3.5" />}
+                        Save
+                      </button>
+                      <button
+                        onClick={() => setRefPickerFor(null)}
+                        className="px-2.5 py-1.5 rounded-md text-xs font-medium border border-white/10 bg-white/5 text-gray-300 hover:bg-white/10"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               ) : job.status === "FAILED" ? (
                 <div className="flex items-center gap-3">
