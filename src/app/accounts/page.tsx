@@ -48,15 +48,34 @@ import {
   RefreshCw,
 } from "lucide-react";
 
-const NICHE_OPTIONS = ["Golf", "Talking", "Omegle", "Podcast", "Dancing", "Motion Control"];
+const NICHE_OPTIONS = [
+  "Cashier",
+  "McDonald's",
+  "Starbucks",
+  "Chipotle",
+  "Waitress",
+  "Delivery Girl",
+  "Mechanic",
+  "Golf",
+  "Talking",
+  "Motion Control",
+];
 
 const NICHE_COLORS: Record<string, string> = {
+  Cashier: "#ef4444",
+  "McDonald's": "#eab308",
+  Starbucks: "#166534",
+  Chipotle: "#9a3412",
+  Waitress: "#db2777",
+  "Delivery Girl": "#0ea5e9",
+  Mechanic: "#64748b",
   Golf: "#22c55e",
   Talking: "#3b82f6",
+  "Motion Control": "#14b8a6",
+  // legacy niches — still render with their color if an account has them
   Omegle: "#a855f7",
   Podcast: "#f59e0b",
   Dancing: "#ec4899",
-  "Motion Control": "#14b8a6",
 };
 
 const DECISION_OPTIONS = ["KEEP", "REMOVE", "TESTING"];
@@ -376,6 +395,8 @@ export default function AccountsPage() {
   const [saving, setSaving] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [customNiche, setCustomNiche] = useState(""); // draft for typing a new niche
+  const [dynamicNiches, setDynamicNiches] = useState<string[]>([]); // niches in use → filter dropdown
 
   const fetchAccounts = useCallback(async () => {
     setLoading(true);
@@ -424,6 +445,25 @@ export default function AccountsPage() {
       return [];
     }
   }, [page, search, filterModel, filterNiche, filterStatus, sortBy, sortOrder]);
+
+  // Niches actually in use → power the filter dropdown alongside the seed options,
+  // so any custom niche you assign is also filterable.
+  useEffect(() => {
+    fetch("/api/accounts/options")
+      .then((r) => r.json())
+      .then((d) => {
+        const set = new Set<string>();
+        for (const a of d.accounts || [])
+          for (const n of a.niche || []) if (n?.trim()) set.add(n.trim());
+        setDynamicNiches(Array.from(set));
+      })
+      .catch(() => {});
+  }, []);
+
+  // Clear the custom-niche draft whenever the modal opens or closes.
+  useEffect(() => {
+    setCustomNiche("");
+  }, [showModal, editingAccount]);
 
   // "Refresh now": ask the VPS scraper for an immediate run, then poll until the
   // data actually updates (the scraper bumps each account's lastSyncedAt).
@@ -849,7 +889,7 @@ export default function AccountsPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Niches</SelectItem>
-                  {NICHE_OPTIONS.map((n) => (
+                  {Array.from(new Set([...NICHE_OPTIONS, ...dynamicNiches])).map((n) => (
                     <SelectItem key={n} value={n}>
                       {n}
                     </SelectItem>
@@ -1172,9 +1212,9 @@ export default function AccountsPage() {
             <div className="space-y-2">
               <Label>Niche (multi-select)</Label>
               <div className="flex flex-wrap gap-2">
-                {NICHE_OPTIONS.map((n) => {
+                {Array.from(new Set([...NICHE_OPTIONS, ...formData.niche])).map((n) => {
                   const active = formData.niche.includes(n);
-                  const c = NICHE_COLORS[n];
+                  const c = NICHE_COLORS[n] || "#6b7280";
                   return (
                     <button
                       key={n}
@@ -1192,6 +1232,20 @@ export default function AccountsPage() {
                   );
                 })}
               </div>
+              <Input
+                placeholder="Add your own niche, then press Enter"
+                value={customNiche}
+                onChange={(e) => setCustomNiche(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    const v = customNiche.trim();
+                    if (v && !formData.niche.includes(v)) toggleNiche(v);
+                    setCustomNiche("");
+                  }
+                }}
+                className="h-8 text-sm"
+              />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
