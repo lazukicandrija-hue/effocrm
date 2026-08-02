@@ -926,7 +926,35 @@ export default function AccountsPage() {
                 <TableRow className="bg-gray-50/50">
                   <TableHead className="w-8"></TableHead>
                   <SortableHead label="Username" field="username" />
-                  <TableHead>Niche</TableHead>
+                  <TableHead className="p-0">
+                    <Select
+                      value={filterNiche}
+                      onValueChange={(v) => {
+                        setFilterNiche(v);
+                        setPage(1);
+                      }}
+                    >
+                      <SelectTrigger
+                        title="Filter by niche"
+                        className="h-12 w-auto border-0 bg-transparent shadow-none rounded-none px-4 gap-1 text-xs font-medium uppercase tracking-wider text-gray-500 hover:text-gray-700 focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                      >
+                        <span className="flex items-center gap-1">
+                          Niche
+                          {filterNiche !== "all" && (
+                            <span className="text-[#d4a853] normal-case">· {filterNiche}</span>
+                          )}
+                        </span>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Niches</SelectItem>
+                        {Array.from(new Set([...NICHE_OPTIONS, ...dynamicNiches])).map((n) => (
+                          <SelectItem key={n} value={n}>
+                            {n}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </TableHead>
                   <SortableHead label="Decision" field="decision" />
                   <SortableHead label="Status" field="status" />
                   <SortableHead label="Followers" field="followers" />
