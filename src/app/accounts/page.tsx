@@ -256,6 +256,117 @@ function InlineEnumCell({
   );
 }
 
+// Click the niche cell to toggle an account's niches inline (multi-select), in a
+// portaled popover so it's never clipped by the scrolling table. Saves each toggle.
+function InlineNicheCell({
+  niches,
+  allNiches,
+  onToggle,
+}: {
+  niches: string[];
+  allNiches: string[];
+  onToggle: (niche: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (
+        btnRef.current &&
+        !btnRef.current.contains(e.target as Node) &&
+        menuRef.current &&
+        !menuRef.current.contains(e.target as Node)
+      )
+        setOpen(false);
+    };
+    const close = () => setOpen(false);
+    document.addEventListener("mousedown", onDown);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [open]);
+
+  const has = new Set(niches || []);
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        title="Click to edit niches"
+        onClick={(e) => {
+          e.stopPropagation();
+          if (!open && btnRef.current) {
+            const r = btnRef.current.getBoundingClientRect();
+            setPos({ top: r.bottom + 4, left: r.left });
+          }
+          setOpen((o) => !o);
+        }}
+        className="cursor-pointer rounded-md hover:opacity-80 transition-opacity text-left min-h-[28px]"
+      >
+        {niches && niches.length > 0 ? (
+          <div className="flex flex-wrap gap-1">
+            {niches.map((n) => {
+              const c = NICHE_COLORS[n] || "#6b7280";
+              return (
+                <Badge key={n} style={{ backgroundColor: `${c}15`, color: c, border: `1px solid ${c}30` }}>
+                  {n}
+                </Badge>
+              );
+            })}
+          </div>
+        ) : (
+          <span className="text-gray-300 hover:text-gray-500">— add niche</span>
+        )}
+      </button>
+      {open &&
+        pos &&
+        createPortal(
+          <div
+            ref={menuRef}
+            style={{ position: "fixed", top: pos.top, left: pos.left, zIndex: 50 }}
+            className="bg-white rounded-lg shadow-lg border border-gray-200 p-2 w-56 max-h-72 overflow-auto"
+          >
+            <p className="text-[11px] text-gray-400 px-1 pb-1.5">Click to toggle niches</p>
+            <div className="flex flex-wrap gap-1.5">
+              {allNiches.map((n) => {
+                const active = has.has(n);
+                const c = NICHE_COLORS[n] || "#6b7280";
+                return (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggle(n);
+                    }}
+                    className="px-2.5 py-1 rounded-full text-xs font-medium border transition-colors"
+                    style={
+                      active
+                        ? { backgroundColor: c, color: "#fff", borderColor: c }
+                        : { backgroundColor: "#fff", color: "#6b7280", borderColor: "#e5e7eb" }
+                    }
+                  >
+                    {n}
+                  </button>
+                );
+              })}
+            </div>
+          </div>,
+          document.body
+        )}
+    </>
+  );
+}
+
 // Click a Notes cell to edit it inline in a small popover (portaled to <body> so
 // it's never clipped by the scrolling table). Saves on close if the text changed.
 function NotesCell({
@@ -488,6 +599,26 @@ export default function AccountsPage() {
       if (Array.isArray(d.niches)) setManagedNiches(d.niches);
     } catch {
       /* optimistic remove stands */
+    }
+  };
+
+  // Inline niche editing: toggle a niche on one account straight from its row cell.
+  const toggleAccountNiche = async (accountId: string, niche: string) => {
+    const acc = accounts.find((a: any) => a.id === accountId);
+    if (!acc) return;
+    const current: string[] = acc.niche || [];
+    const next = current.includes(niche)
+      ? current.filter((n: string) => n !== niche)
+      : [...current, niche];
+    setAccounts((xs: any[]) => xs.map((a) => (a.id === accountId ? { ...a, niche: next } : a)));
+    try {
+      await fetch(`/api/accounts/${accountId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ niche: next }),
+      });
+    } catch {
+      refreshAccountsQuietly();
     }
   };
 
@@ -824,26 +955,6 @@ export default function AccountsPage() {
     );
   };
 
-  const NicheBadges = ({ niches }: { niches: string[] }) => (
-    <div className="flex flex-wrap gap-1">
-      {(niches || []).length === 0 ? (
-        <span className="text-gray-300">—</span>
-      ) : (
-        niches.map((n) => {
-          const c = NICHE_COLORS[n] || "#6b7280";
-          return (
-            <Badge
-              key={n}
-              style={{ backgroundColor: `${c}15`, color: c, border: `1px solid ${c}30` }}
-            >
-              {n}
-            </Badge>
-          );
-        })
-      )}
-    </div>
-  );
-
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -1060,7 +1171,11 @@ export default function AccountsPage() {
                         </a>
                       </TableCell>
                       <TableCell>
-                        <NicheBadges niches={account.niche} />
+                        <InlineNicheCell
+                          niches={account.niche}
+                          allNiches={managedNiches}
+                          onToggle={(n) => toggleAccountNiche(account.id, n)}
+                        />
                       </TableCell>
                       <TableCell>
                         <InlineEnumCell
