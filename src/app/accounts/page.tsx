@@ -404,7 +404,7 @@ export default function AccountsPage() {
     try {
       const params = new URLSearchParams({
         page: page.toString(),
-        limit: "20",
+        limit: "1000",
         search,
         modelId: filterModel,
         niche: filterNiche,
@@ -430,7 +430,7 @@ export default function AccountsPage() {
     try {
       const params = new URLSearchParams({
         page: page.toString(),
-        limit: "20",
+        limit: "1000",
         search,
         modelId: filterModel,
         niche: filterNiche,
