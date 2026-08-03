@@ -46,7 +46,6 @@ import {
   Check,
   GripVertical,
   RefreshCw,
-  X,
 } from "lucide-react";
 
 const NICHE_OPTIONS = [
@@ -391,6 +390,7 @@ export default function AccountsPage() {
 
   // Modal
   const [showModal, setShowModal] = useState(false);
+  const [showNicheModal, setShowNicheModal] = useState(false);
   const [editingAccount, setEditingAccount] = useState<any>(null);
   const [formData, setFormData] = useState({ ...emptyForm });
   const [saving, setSaving] = useState(false);
@@ -921,25 +921,19 @@ export default function AccountsPage() {
                 <SelectContent>
                   <SelectItem value="all">All Niches</SelectItem>
                   {managedNiches.map((n) => (
-                    <SelectItem key={n} value={n} className="relative pr-8">
+                    <SelectItem key={n} value={n}>
                       {n}
-                      <button
-                        type="button"
-                        onPointerDown={(e) => e.stopPropagation()}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          e.preventDefault();
-                          deleteNiche(n);
-                        }}
-                        title={`Remove "${n}" from the list`}
-                        className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-gray-400 hover:text-red-500"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              <Button
+                variant="outline"
+                onClick={() => setShowNicheModal(true)}
+                className="whitespace-nowrap"
+              >
+                Manage niches
+              </Button>
               <Select
                 value={filterStatus}
                 onValueChange={(v) => {
@@ -992,21 +986,8 @@ export default function AccountsPage() {
                       <SelectContent>
                         <SelectItem value="all">All Niches</SelectItem>
                         {managedNiches.map((n) => (
-                          <SelectItem key={n} value={n} className="relative pr-8">
+                          <SelectItem key={n} value={n}>
                             {n}
-                            <button
-                              type="button"
-                              onPointerDown={(e) => e.stopPropagation()}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                e.preventDefault();
-                                deleteNiche(n);
-                              }}
-                              title={`Remove "${n}" from the list`}
-                              className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-gray-400 hover:text-red-500"
-                            >
-                              <X className="h-3.5 w-3.5" />
-                            </button>
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -1228,6 +1209,70 @@ export default function AccountsPage() {
       </div>
 
       {/* Add/Edit Modal */}
+      {/* Manage niches */}
+      <Dialog open={showNicheModal} onOpenChange={setShowNicheModal}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Manage niches</DialogTitle>
+            <DialogDescription>
+              Remove niches you don&apos;t use, or add a new one. Removing a niche here won&apos;t untag
+              accounts that already have it.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            {managedNiches.length === 0 ? (
+              <p className="text-sm text-gray-400">No niches yet — add one below.</p>
+            ) : (
+              managedNiches.map((n) => (
+                <div
+                  key={n}
+                  className="flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2"
+                >
+                  <span className="text-sm text-gray-800 inline-flex items-center gap-2">
+                    <span
+                      className="h-2.5 w-2.5 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: NICHE_COLORS[n] || "#9ca3af" }}
+                    />
+                    {n}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => deleteNiche(n)}
+                    title={`Remove "${n}"`}
+                    className="p-1 rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+          <div className="flex gap-2 pt-2">
+            <Input
+              placeholder="Add a niche…"
+              value={customNiche}
+              onChange={(e) => setCustomNiche(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  addNiche(customNiche);
+                  setCustomNiche("");
+                }
+              }}
+            />
+            <Button
+              onClick={() => {
+                addNiche(customNiche);
+                setCustomNiche("");
+              }}
+              disabled={!customNiche.trim()}
+            >
+              Add
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={showModal} onOpenChange={setShowModal}>
         <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
