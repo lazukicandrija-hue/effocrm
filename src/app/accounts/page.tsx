@@ -46,6 +46,7 @@ import {
   Check,
   GripVertical,
   RefreshCw,
+  X,
 } from "lucide-react";
 
 const NICHE_OPTIONS = [
@@ -396,7 +397,7 @@ export default function AccountsPage() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [customNiche, setCustomNiche] = useState(""); // draft for typing a new niche
-  const [dynamicNiches, setDynamicNiches] = useState<string[]>([]); // niches in use → filter dropdown
+  const [managedNiches, setManagedNiches] = useState<string[]>(NICHE_OPTIONS); // editable niche list
 
   const fetchAccounts = useCallback(async () => {
     setLoading(true);
@@ -446,19 +447,49 @@ export default function AccountsPage() {
     }
   }, [page, search, filterModel, filterNiche, filterStatus, sortBy, sortOrder]);
 
-  // Niches actually in use → power the filter dropdown alongside the seed options,
-  // so any custom niche you assign is also filterable.
+  // Load the managed niche list — the dropdowns + edit-form quick-picks all use it.
   useEffect(() => {
-    fetch("/api/accounts/options")
+    fetch("/api/niches")
       .then((r) => r.json())
-      .then((d) => {
-        const set = new Set<string>();
-        for (const a of d.accounts || [])
-          for (const n of a.niche || []) if (n?.trim()) set.add(n.trim());
-        setDynamicNiches(Array.from(set));
-      })
+      .then((d) => Array.isArray(d.niches) && d.niches.length && setManagedNiches(d.niches))
       .catch(() => {});
   }, []);
+
+  const addNiche = async (name: string) => {
+    const v = name.trim();
+    if (!v) return;
+    setManagedNiches((xs) => (xs.includes(v) ? xs : [...xs, v]));
+    try {
+      const r = await fetch("/api/niches", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: v }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (Array.isArray(d.niches)) setManagedNiches(d.niches);
+    } catch {
+      /* optimistic add stands */
+    }
+  };
+
+  const deleteNiche = async (name: string) => {
+    setManagedNiches((xs) => xs.filter((n) => n !== name));
+    if (filterNiche === name) {
+      setFilterNiche("all");
+      setPage(1);
+    }
+    try {
+      const r = await fetch("/api/niches", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (Array.isArray(d.niches)) setManagedNiches(d.niches);
+    } catch {
+      /* optimistic remove stands */
+    }
+  };
 
   // Clear the custom-niche draft whenever the modal opens or closes.
   useEffect(() => {
@@ -889,9 +920,22 @@ export default function AccountsPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Niches</SelectItem>
-                  {Array.from(new Set([...NICHE_OPTIONS, ...dynamicNiches])).map((n) => (
-                    <SelectItem key={n} value={n}>
+                  {managedNiches.map((n) => (
+                    <SelectItem key={n} value={n} className="relative pr-8">
                       {n}
+                      <button
+                        type="button"
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          deleteNiche(n);
+                        }}
+                        title={`Remove "${n}" from the list`}
+                        className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-gray-400 hover:text-red-500"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -947,9 +991,22 @@ export default function AccountsPage() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All Niches</SelectItem>
-                        {Array.from(new Set([...NICHE_OPTIONS, ...dynamicNiches])).map((n) => (
-                          <SelectItem key={n} value={n}>
+                        {managedNiches.map((n) => (
+                          <SelectItem key={n} value={n} className="relative pr-8">
                             {n}
+                            <button
+                              type="button"
+                              onPointerDown={(e) => e.stopPropagation()}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+                                deleteNiche(n);
+                              }}
+                              title={`Remove "${n}" from the list`}
+                              className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-gray-400 hover:text-red-500"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -1240,7 +1297,7 @@ export default function AccountsPage() {
             <div className="space-y-2">
               <Label>Niche (multi-select)</Label>
               <div className="flex flex-wrap gap-2">
-                {Array.from(new Set([...NICHE_OPTIONS, ...formData.niche])).map((n) => {
+                {Array.from(new Set([...managedNiches, ...formData.niche])).map((n) => {
                   const active = formData.niche.includes(n);
                   const c = NICHE_COLORS[n] || "#6b7280";
                   return (
@@ -1268,7 +1325,10 @@ export default function AccountsPage() {
                   if (e.key === "Enter") {
                     e.preventDefault();
                     const v = customNiche.trim();
-                    if (v && !formData.niche.includes(v)) toggleNiche(v);
+                    if (v) {
+                      if (!formData.niche.includes(v)) toggleNiche(v);
+                      addNiche(v); // persist to the managed list so it shows in the dropdowns
+                    }
                     setCustomNiche("");
                   }
                 }}

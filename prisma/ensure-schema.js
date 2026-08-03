@@ -249,6 +249,19 @@ const statements = [
     "PoppyFrame_status_idx",
     `CREATE INDEX IF NOT EXISTS "PoppyFrame_status_idx" ON "PoppyFrame"("status");`,
   ],
+  [
+    "Niche table",
+    `CREATE TABLE IF NOT EXISTS "Niche" (
+       "id" TEXT NOT NULL,
+       "name" TEXT NOT NULL,
+       "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+       CONSTRAINT "Niche_pkey" PRIMARY KEY ("id")
+     );`,
+  ],
+  [
+    "Niche_name_key",
+    `CREATE UNIQUE INDEX IF NOT EXISTS "Niche_name_key" ON "Niche"("name");`,
+  ],
 ];
 
 async function main() {

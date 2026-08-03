@@ -249,6 +249,14 @@ model PoppyFrame {
   @@index([createdAt])
 }
 
+// User-managed list of niche names for categorizing accounts. Add via the UI (custom
+// niche box), remove via the niche dropdown. Seeded once on first read.
+model Niche {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+}
+
 // An auto-recreation job: a source reel → Poppy image (image-edit workflow) →
 // final reel (Motion-Control workflow), driven through the RUNNING-HUB Airtable
 // base. The CRM acts as a "robot VA": it only CREATES rows + ticks START, then
