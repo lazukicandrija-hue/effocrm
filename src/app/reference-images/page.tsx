@@ -5,7 +5,7 @@ import DashboardLayout from "@/components/layout/dashboard-layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Images, Upload, Copy, Link2, Trash2, Check, Loader2 } from "lucide-react";
+import { Images, Upload, Copy, Link2, Trash2, Check, Loader2, Download } from "lucide-react";
 
 const FIXED_NICHES = ["Golf", "Talking", "Omegle", "Podcast", "Dancing", "Motion Control"];
 
@@ -126,6 +126,21 @@ export default function ReferenceImagesPage() {
       setTimeout(() => setCopied(null), 1500);
     } catch {
       alert("Couldn't copy the link.");
+    }
+  };
+
+  const download = async (img: RefImg) => {
+    if (!img.url) return;
+    try {
+      const blob = await (await fetch(img.url)).blob();
+      const href = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = href;
+      a.download = `${(img.niche || "reference").replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.jpg`;
+      a.click();
+      URL.revokeObjectURL(href);
+    } catch {
+      window.open(img.url, "_blank"); // fallback: open it so they can save manually
     }
   };
 
@@ -258,6 +273,13 @@ export default function ReferenceImagesPage() {
                     className="inline-flex items-center justify-center gap-1 px-2 py-1.5 rounded-md text-[11px] font-medium border border-gray-200 text-gray-600 hover:bg-gray-50"
                   >
                     {copied === "link:" + img.id ? <Check className="h-3 w-3" /> : <Link2 className="h-3 w-3" />}
+                  </button>
+                  <button
+                    onClick={() => download(img)}
+                    title="Download this image"
+                    className="inline-flex items-center justify-center gap-1 px-2 py-1.5 rounded-md text-[11px] font-medium border border-gray-200 text-gray-600 hover:bg-gray-50"
+                  >
+                    <Download className="h-3 w-3" />
                   </button>
                 </CardContent>
               </Card>
