@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Images, Upload, Copy, Link2, Trash2, Check, Loader2, Download } from "lucide-react";
 
-const FIXED_NICHES = ["Golf", "Talking", "Omegle", "Podcast", "Dancing", "Motion Control"];
 
 type RefImg = {
   id: string;
@@ -21,7 +20,9 @@ export default function ReferenceImagesPage() {
   const [items, setItems] = useState<RefImg[]>([]);
   const [loading, setLoading] = useState(true);
   const [folder, setFolder] = useState("all");
-  const [uploadNiche, setUploadNiche] = useState(FIXED_NICHES[0]);
+  const [uploadNiche, setUploadNiche] = useState("");
+  const [addingNew, setAddingNew] = useState(false);
+  const [managedNiches, setManagedNiches] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [copied, setCopied] = useState<string | null>(null); // "img:<id>" | "link:<id>"
 
@@ -39,6 +40,19 @@ export default function ReferenceImagesPage() {
   useEffect(() => {
     fetchItems();
   }, [fetchItems]);
+
+  // The managed niche list (shared with Accounts) powers the folder dropdown.
+  useEffect(() => {
+    fetch("/api/niches")
+      .then((r) => r.json())
+      .then((d) => {
+        if (Array.isArray(d.niches) && d.niches.length) {
+          setManagedNiches(d.niches);
+          setUploadNiche((cur) => cur || d.niches[0]);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const folders = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -68,6 +82,15 @@ export default function ReferenceImagesPage() {
           body: JSON.stringify({ imageKey: d.key, niche }),
         });
       }
+      // Remember this niche in the shared list so it stays selectable next time.
+      fetch("/api/niches", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: niche }),
+      })
+        .then((r) => r.json())
+        .then((d) => Array.isArray(d.niches) && setManagedNiches(d.niches))
+        .catch(() => {});
       await fetchItems();
       setFolder(niche);
     } catch (e: any) {
@@ -155,7 +178,7 @@ export default function ReferenceImagesPage() {
   };
 
   const shown = folder === "all" ? items : items.filter((i) => i.niche === folder);
-  const nicheOptions = Array.from(new Set([...FIXED_NICHES, ...folders]));
+  const nicheOptions = Array.from(new Set([...managedNiches, ...folders]));
 
   return (
     <DashboardLayout>
@@ -175,18 +198,48 @@ export default function ReferenceImagesPage() {
           <CardContent className="p-5 flex flex-wrap items-end gap-4">
             <div className="space-y-1.5">
               <Label>Folder (niche)</Label>
-              <input
-                list="ref-folders"
-                value={uploadNiche}
-                onChange={(e) => setUploadNiche(e.target.value)}
-                placeholder="e.g. Golf"
-                className="h-9 w-48 rounded-md border border-gray-200 px-3 text-sm bg-white"
-              />
-              <datalist id="ref-folders">
-                {nicheOptions.map((n) => (
-                  <option key={n} value={n} />
-                ))}
-              </datalist>
+              {addingNew ? (
+                <div className="flex items-center gap-1.5">
+                  <input
+                    autoFocus
+                    value={uploadNiche}
+                    onChange={(e) => setUploadNiche(e.target.value)}
+                    placeholder="New niche name"
+                    className="h-9 w-40 rounded-md border border-gray-200 px-3 text-sm bg-white"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAddingNew(false);
+                      setUploadNiche(nicheOptions[0] || "");
+                    }}
+                    className="h-9 px-2.5 rounded-md border border-gray-200 text-xs text-gray-500 hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <select
+                  value={uploadNiche}
+                  onChange={(e) => {
+                    if (e.target.value === "__new__") {
+                      setAddingNew(true);
+                      setUploadNiche("");
+                    } else {
+                      setUploadNiche(e.target.value);
+                    }
+                  }}
+                  className="h-9 w-48 rounded-md border border-gray-200 px-3 text-sm bg-white"
+                >
+                  {nicheOptions.length === 0 && <option value="">—</option>}
+                  {nicheOptions.map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                  <option value="__new__">+ Add new niche…</option>
+                </select>
+              )}
             </div>
             <label
               className={`inline-flex items-center gap-2 px-4 h-9 rounded-lg text-sm font-medium text-white cursor-pointer ${
