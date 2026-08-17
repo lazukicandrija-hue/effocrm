@@ -55,6 +55,42 @@ export async function describeImage(imageUrl: string): Promise<string> {
   }
 }
 
+// Describe what happens across a reel from several sampled frames (image URLs / data
+// URLs), so a text model can write a caption hook grounded in the actual content.
+export async function describeFrames(frameUrls: string[]): Promise<string> {
+  if (!OPENROUTER_KEY || !frameUrls.length) return "";
+  const content: any[] = [
+    {
+      type: "text",
+      text: "These are frames sampled across one short-form vertical reel featuring a young woman. In 2-3 concrete sentences, describe what is happening: the setting/location, what she is doing, any job/uniform context, her vibe/expression, and any objects or actions that stand out. This will be used to write a flirty caption hook.",
+    },
+    ...frameUrls.slice(0, 6).map((url) => ({ type: "image_url", image_url: { url } })),
+  ];
+  try {
+    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${OPENROUTER_KEY}`,
+        "HTTP-Referer": "https://effortless-crm.ondigitalocean.app",
+        "X-Title": "Effortless CRM Text-On-Screen",
+      },
+      body: JSON.stringify({
+        model: VLM_MODEL,
+        messages: [{ role: "user", content }],
+        temperature: 0.4,
+        max_tokens: 300,
+      }),
+      signal: AbortSignal.timeout(60000),
+    });
+    if (!res.ok) return "";
+    const data = await res.json();
+    return (data?.choices?.[0]?.message?.content || "").trim().slice(0, 800);
+  } catch {
+    return "";
+  }
+}
+
 type Msg = { role: "system" | "user" | "assistant"; content: string };
 
 export async function chat(

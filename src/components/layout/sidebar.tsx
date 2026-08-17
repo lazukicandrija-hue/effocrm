@@ -24,6 +24,7 @@ import {
   Images,
   Brain,
   BookMarked,
+  MessageSquareText,
 } from "lucide-react";
 
 const navigation = [
@@ -35,6 +36,7 @@ const navigation = [
   { name: "First Frame", href: "/prompter", icon: Frame },
   { name: "Auto-Recreate", href: "/auto-recreate", icon: Wand2 },
   { name: "Captioner", href: "/captioner", icon: Type },
+  { name: "Text-On-Screen", href: "/text-on-screen", icon: MessageSquareText },
   { name: "Reference Images", href: "/reference-images", icon: Images },
   { name: "Competitors", href: "/competitors", icon: Swords },
   { name: "Marketing", href: "/marketing", icon: Lightbulb },
