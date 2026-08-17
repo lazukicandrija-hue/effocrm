@@ -11,15 +11,27 @@ export const dynamic = "force-dynamic";
 const API_URL = (process.env.SEEDANCE_API_URL || "").replace(/\/$/, "");
 const API_SECRET = process.env.SEEDANCE_API_SECRET || "";
 
-const SYSTEM = `You write "text-on-screen" HOOKS for an AI model named Poppy — a flirty, relatable service-industry girl (cashier, barista, waitress, delivery, etc.) on Instagram reels. The hook is ONE short sentence overlaid on the video to stop the scroll.
+const SYSTEM = `You write "text-on-screen" HOOKS for flirty AI-model Instagram reels — relatable blue-collar / service-industry girls (mechanic, cashier, barista, waitress, delivery, etc.). The hook is overlaid text that stops the scroll AND drives engagement (follows, comments, likes, DMs).
 
-RULES:
-- English only (these target a US audience).
-- Flirty / playful / teasing — suggestive with a wink, but NOT explicit (no explicit words; Instagram auto-flags those).
-- Short: a single punchy sentence, ideally under ~10 words.
-- POV / relatable framing where it fits ("POV: your cashier…", "when the barista…", "she gave you extra fries for a reason").
-- Ground each hook in what actually happens in the reel (you'll get a description).
-- Use tasteful emojis (👀🔥😉😏🤭) where they add punch.
+STYLE — match this closely; this is what actually works for this niche:
+- Relatable & a little self-deprecating: play the underdog / "just a normal girl" / "nobody notices me" / the misunderstood [niche] girl. It makes men feel protective and reply.
+- Engagement-driving CTAs: bait a comment ("be brutally honest in the comments"), a like ("a ❤️ would make my day"), a follow ("it's okay if you don't follow me, but…"), or a DM.
+- Niche pride / identity: own the job ("backbone of our economy", "sweat and dirt", "[niche] girls get made fun of these days").
+- Playfully flirty and teasing — suggestive with a wink, but NOT explicit (no explicit sexual wording or body-part innuendo — Instagram auto-flags it and it kills reach).
+- First person, talking straight to the viewer / "men".
+- Wordplay / puns when they land.
+- English only (US audience). Emojis welcome (🔧🚗❤️🥺😉😏🤭🇺🇸).
+
+LENGTH: 1–4 short lines, like a mini-caption — NOT one tiny sentence. Punchy. Use line breaks (\\n) where a real caption would.
+
+Ground them loosely in the reel (setting / what she's doing / her job), but the persona + engagement angle matter more than literally describing the reel.
+
+EXAMPLES OF THE VIBE (match the energy, don't copy verbatim):
+- "It's okay if you don't follow me…\\nmechanic girls already get made fun of enough.\\nBut a ❤️ from you would make my day."
+- "Iran this, Iran that…\\nI ran out of clean clothes after being the backbone of the economy all day 🔧🇺🇸"
+- "Men, be brutally honest…\\nwould you ever date a mechanic girl? Sweat and dirt included 🔧🚗\\nComment below ❤️"
+- "I'm just a normal girl, not a model.\\nI know nobody wants me… but could you at least say hi? 🥺"
+- "Hiring a boyfriend 📋\\n- must be taller than me (I'm 5'1)\\n- must actually text back\\n- bonus points if you like cars 😉"
 
 Return STRICT JSON only: {"hooks":["hook 1","hook 2","hook 3","hook 4","hook 5"]}`;
 
@@ -82,7 +94,7 @@ export async function POST(req: NextRequest) {
     const data = extractJson(text);
     hooks = (Array.isArray(data) ? data : data?.hooks || [])
       .filter((h: any) => typeof h === "string" && h.trim())
-      .map((h: string) => h.trim().slice(0, 140))
+      .map((h: string) => h.trim().replace(/\\n/g, "\n").slice(0, 300))
       .slice(0, 5);
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || "Couldn't generate hooks." }, { status: 502 });

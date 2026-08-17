@@ -274,13 +274,13 @@ export default function TextOnScreenPage() {
                           <button
                             key={key}
                             onClick={() => copyHook(key, h)}
-                            className="group w-full flex items-center gap-2 text-left rounded-lg border border-gray-100 hover:border-[#d4a853]/50 hover:bg-[#d4a853]/[0.04] px-3 py-2 transition-colors"
+                            className="group w-full flex items-start gap-2 text-left rounded-lg border border-gray-100 hover:border-[#d4a853]/50 hover:bg-[#d4a853]/[0.04] px-3 py-2 transition-colors"
                           >
-                            <span className="flex-1 text-sm text-gray-800">{h}</span>
+                            <span className="flex-1 text-sm text-gray-800 whitespace-pre-line leading-snug">{h}</span>
                             {copied === key ? (
-                              <Check className="h-3.5 w-3.5 text-emerald-500 flex-shrink-0" />
+                              <Check className="h-3.5 w-3.5 text-emerald-500 flex-shrink-0 mt-0.5" />
                             ) : (
-                              <Copy className="h-3.5 w-3.5 text-gray-300 group-hover:text-[#d4a853] flex-shrink-0" />
+                              <Copy className="h-3.5 w-3.5 text-gray-300 group-hover:text-[#d4a853] flex-shrink-0 mt-0.5" />
                             )}
                           </button>
                         );
